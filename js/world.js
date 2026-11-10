@@ -2,6 +2,17 @@
 import * as THREE from '../vendor/three/three.module.js';
 import { makeMaterial } from './textures.js';
 
+export const SPAWN_MIN_REGULAR = 16;
+export const SPAWN_MIN_RUSHER = 19;
+export const SPAWN_MIN_BOSS = 19;
+
+export function spawnMinFor(type) {
+  if (type === 'rusher') return SPAWN_MIN_RUSHER;
+  if (type === 'finalboss') return 20;
+  if (type === 'midboss' || (type && String(type).includes('boss'))) return SPAWN_MIN_BOSS;
+  return SPAWN_MIN_REGULAR;
+}
+
 const SKY_VERT = `
 varying vec3 vDir;
 void main() {
@@ -431,17 +442,75 @@ export class World {
   }
 
   _spawns() {
+    // Perimeter / edge points only — never the yard center in front of the player start.
     this.spawns = [
-      [0, -10.4], [10.2, -9.5], [-10.6, -8.8],
-      [12.4, 1.2], [-10.8, 4.6], [11.6, 9.6],
-      [-8.2, 15.2], [7.4, 15.6], [0.0, 8.4]
+      [0.0, -10.8], [4.4, -10.6], [-4.4, -10.6],
+      [8.2, -10.2], [-8.2, -10.2],
+      [0.0, -16.8], [7.5, -17.2], [-7.5, -17.2],
+      [12.4, -8.8], [12.6, -2.0], [12.5, 4.0], [12.2, 10.5], [11.8, 16.8],
+      [-12.4, -9.0], [-12.5, -3.0], [-12.4, 12.2], [-12.2, 17.0],
+      [-11.5, 18.8], [0.0, 19.0], [11.5, 18.8], [-6.0, 19.0], [6.0, 19.0]
     ];
   }
 
-  pickSpawn(px, pz, minDist = 10) {
-    const ok = this.spawns.filter(([x, z]) => Math.hypot(x - px, z - pz) >= minDist);
-    const list = ok.length ? ok : this.spawns;
-    return list[Math.floor(Math.random() * list.length)];
+  pickSpawn(px, pz, minDist = SPAWN_MIN_REGULAR) {
+    const far = [];
+    for (const [x, z] of this.spawns) {
+      const placed = this._validateSpawn(x, z, px, pz, minDist);
+      if (placed) far.push(placed);
+    }
+    if (far.length) return far[Math.floor(Math.random() * far.length)];
+    const ring = this._ringSpawn(px, pz, minDist);
+    if (ring) return ring;
+    return this._forcedFar(px, pz, minDist);
+  }
+
+  _validateSpawn(x, z, px, pz, minDist) {
+    const c = this.collide(x, 0.9, z, 0.48, 1.8);
+    const slip = Math.hypot(c.x - x, c.z - z);
+    if (slip > 0.9) return null;
+    const d = Math.hypot(c.x - px, c.z - pz);
+    if (d < minDist - 0.05) return null;
+    return [c.x, c.z];
+  }
+
+  _ringSpawn(px, pz, minDist) {
+    const radii = [minDist, minDist + 1.5, minDist + 3, minDist + 5];
+    const n = 16;
+    const off = Math.random() * Math.PI * 2;
+    for (const r of radii) {
+      for (let i = 0; i < n; i++) {
+        const a = off + (i * Math.PI * 2) / n;
+        const x = px + Math.cos(a) * r;
+        const z = pz + Math.sin(a) * r;
+        const placed = this._validateSpawn(x, z, px, pz, minDist);
+        if (placed) return placed;
+      }
+    }
+    return null;
+  }
+
+  _forcedFar(px, pz, minDist) {
+    let best = this.spawns[0], bestD = -1;
+    for (const s of this.spawns) {
+      const c = this.collide(s[0], 0.9, s[1], 0.48, 1.8);
+      const d = Math.hypot(c.x - px, c.z - pz);
+      if (d > bestD) { best = [c.x, c.z]; bestD = d; }
+    }
+    if (bestD >= minDist) return best;
+    let dx = best[0] - px, dz = best[1] - pz;
+    let len = Math.hypot(dx, dz);
+    if (len < 0.2) {
+      dx = -px || 1;
+      dz = -pz;
+      len = Math.hypot(dx, dz) || 1;
+    }
+    dx /= len; dz /= len;
+    const raw = this.collide(px + dx * minDist, 0.9, pz + dz * minDist, 0.48, 1.8);
+    const d = Math.hypot(raw.x - px, raw.z - pz);
+    if (d >= minDist - 0.05) return [raw.x, raw.z];
+    if (d > bestD) return [raw.x, raw.z];
+    return best;
   }
 
   collide(px, py, pz, radius, height) {

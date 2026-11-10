@@ -1,3 +1,4 @@
+import { spawnMinFor } from './world.js';
 
 export const WAVES = [
   {
@@ -128,7 +129,7 @@ export class WaveDirector {
     const cap = 12;
     while (this.queue.length && this.timer >= this.queue[0].delay && this.combat.living().length < cap) {
       const job = this.queue.shift();
-      const [x, z] = this.world.pickSpawn(player.position.x, player.position.z, job.type.includes('boss') ? 14 : 10);
+      const [x, z] = this.world.pickSpawn(player.position.x, player.position.z, spawnMinFor(job.type));
       this.combat.spawn(job.type, x, z);
       this.spawned += 1;
     }

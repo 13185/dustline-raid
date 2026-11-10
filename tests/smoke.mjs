@@ -158,6 +158,76 @@ function ok(cond, msg) {
   await page.close();
 }
 
+
+{
+  const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+  await page.goto(BASE + '/?quality=low&v=spawnfix', { waitUntil: 'domcontentloaded', timeout: 60000 });
+  await waitReady(page);
+  const spawn = await page.evaluate(() => {
+    const g = window.__game;
+    const positions = [
+      [0, 16.4], [0, 0], [0, -8], [0, 8.4],
+      [7.4, 15.6], [-8.2, 15.2], [10, 2], [-8, 4], [0, -16]
+    ];
+    const results = [];
+    let minSeen = Infinity, maxSeen = 0, samples = 0, tooClose = 0, atFeet = 0;
+    const runs = [];
+    for (const [px, pz] of positions) {
+      for (const minDist of [16, 19, 20]) {
+        for (let i = 0; i < 12; i++) {
+          const [x, z] = g.world.pickSpawn(px, pz, minDist);
+          const d = Math.hypot(x - px, z - pz);
+          samples += 1;
+          if (d < minSeen) minSeen = d;
+          if (d > maxSeen) maxSeen = d;
+          if (d < minDist - 0.05) {
+            tooClose += 1;
+            runs.push({ px, pz, x, z, d, minDist });
+          }
+          if (d < 2.5) atFeet += 1;
+        }
+      }
+    }
+    g.combat.clearAll();
+    g.player.position.set(0, 0, 16.4);
+    g.player.hp = 100;
+    g.player.invuln = 0;
+    const [sx, sz] = g.world.pickSpawn(0, 16.4, 19);
+    const rusher = g.combat.spawn('rusher', sx, sz);
+    const spawnD = Math.hypot(sx - 0, sz - 16.4);
+    for (let i = 0; i < 24; i++) rusher.update(1 / 60, g.player, g.world, g.combat);
+    const hpAfterFar = g.player.hp;
+    g.combat.clearAll();
+    g.player.hp = 100;
+    g.player.invuln = 0;
+    const close = g.combat.spawn('rusher', 0.4, 16.6);
+    for (let i = 0; i < 24; i++) close.update(1 / 60, g.player, g.world, g.combat);
+    const hpAfterClose = g.player.hp;
+    const grace = close.spawnGrace;
+    return {
+      samples, minSeen, maxSeen, tooClose, atFeet, bad: runs.slice(0, 8),
+      spawnD, hpAfterFar, hpAfterClose, grace
+    };
+  });
+  ok(spawn.samples >= 200, 'spawn samples ' + spawn.samples);
+  ok(spawn.tooClose === 0, 'no spawn closer than minDist (bad=' + spawn.tooClose + ' minSeen=' + spawn.minSeen.toFixed(2) + ')');
+  ok(spawn.atFeet === 0, 'never at player feet');
+  ok(spawn.minSeen >= 15.95, 'closest pickSpawn ' + spawn.minSeen.toFixed(2) + 'm');
+  ok(spawn.spawnD >= 19 - 0.05, 'rusher minDist spawn at ' + spawn.spawnD.toFixed(2) + 'm');
+  ok(spawn.hpAfterFar === 100, 'rusher at minDist did not damage in 0.4s (hp=' + spawn.hpAfterFar + ')');
+  ok(spawn.grace >= 0.6, 'spawn grace ' + spawn.grace + 's');
+  ok(spawn.hpAfterClose === 100, 'rusher on top of player still blocked by grace (hp=' + spawn.hpAfterClose + ')');
+  console.log('SPAWN STATS', JSON.stringify({
+    samples: spawn.samples,
+    minSeen: +spawn.minSeen.toFixed(3),
+    maxSeen: +spawn.maxSeen.toFixed(3),
+    spawnD: +spawn.spawnD.toFixed(3),
+    grace: spawn.grace
+  }));
+  if (spawn.bad.length) console.log('BAD', JSON.stringify(spawn.bad));
+  await page.close();
+}
+
 await browser.close();
 if (fails.length) {
   console.error('Smoke failed:', fails);

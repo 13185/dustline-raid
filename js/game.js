@@ -460,7 +460,7 @@ export class Game {
 
   _applyShot() {
     const s = this._shotMode;
-    if (!s) return;
+    if (!s) return; // screenshot / test harness only (?shot=); never used on a normal start
     document.getElementById('boot').classList.add('hidden');
     if (s === 'title' || s === 'yard') {
       this.mode = 'title';
@@ -536,6 +536,7 @@ export class Game {
         fromGltf: !!(self.loadout.models.pistol && self.loadout.models.pistol.userData.fromGltf)
       }),
       start: () => self.startRun(),
+      pickSpawn: (x, z, minDist) => self.world.pickSpawn(x, z, minDist),
       spawnEnemy: (type, x, z) => self.combat.spawn(type || 'rusher', x ?? 0, z ?? 6),
       forceUpgrade: (id) => self.applyReward(id || 'gun_smg'),
       setWave: (n) => { self.waves.index = Math.max(0, n - 1); self.combat.clearAll(); self._beginWave(); },

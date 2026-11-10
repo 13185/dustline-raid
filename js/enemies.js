@@ -37,6 +37,7 @@ export class Enemy {
     this.warn = null;
     this.strafe = Math.random() > 0.5 ? 1 : -1;
     this.root.traverse((o) => { o.userData.skipHit = true; });
+    this.spawnGrace = (this.def.kind === 'melee' || this.def.kind === 'boss') ? 0.9 : 0.45;
   }
 
   pos() { return this.root.position; }
@@ -75,7 +76,7 @@ export class Enemy {
       return this.deadT > 1.3;
     }
     if (this.state === 'spawn') {
-      const k = Math.min(1, this.age / 0.35);
+      const k = Math.min(1, this.age / 0.55);
       this.root.scale.setScalar((this.def.scale || 1) * k);
       if (k >= 1) this.state = 'chase';
       return false;
@@ -134,6 +135,7 @@ export class Enemy {
     }
 
     if (this.telegraph > 0) return false;
+    if (this.age < this.spawnGrace) return false;
 
     if (this.cd <= 0) {
       if (this.def.kind === 'melee' && dist < this.def.range) {
