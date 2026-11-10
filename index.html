@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#1a140c" />
+  <title>尘线突击 · Dustline Raid</title>
+  <link rel="stylesheet" href="./css/main.css" />
+</head>
+<body>
+  <div id="app">
+    <canvas id="gl"></canvas>
+
+    <div id="boot" class="overlay">
+      <div class="boot-card">
+        <div class="boot-kicker">DUSTLINE RAID</div>
+        <h1>尘线突击</h1>
+        <div class="boot-bar"><i id="bootFill"></i></div>
+        <p id="bootText">正在扬起沙尘…</p>
+        <p class="credit">作者：Jack · © Jack 版权所有 · 禁止任何形式转载</p>
+      </div>
+    </div>
+
+    <div id="title" class="overlay hidden">
+      <div class="title-shade"></div>
+      <div class="title-card">
+        <div class="title-kicker">CLASSIC RAID · WAVE SURVIVAL</div>
+        <h1>尘线突击</h1>
+        <h2>DUSTLINE RAID</h2>
+        <p class="tagline">沙市货栈已被民兵占领。一波接一波——清场、换枪、活到最后。</p>
+        <div class="title-actions">
+          <button id="btnStart" class="btn primary">开始突击</button>
+          <div class="opt-row">
+            <label>画质
+              <select id="selQuality">
+                <option value="auto">自动</option>
+                <option value="high">高</option>
+                <option value="medium" selected>中</option>
+                <option value="low">低</option>
+              </select>
+            </label>
+            <label class="chk"><input type="checkbox" id="chkMute" /> 静音</label>
+          </div>
+        </div>
+        <div class="help-mini">
+          WASD 移动 · 点击锁定视角 · Shift 静步 · Ctrl 下蹲 · 空格 跳<br />
+          左键射击 · 右键瞄准 · R 换弹 · 1-4 / 滚轮切枪 · G 手雷 · Esc 暂停
+        </div>
+        <p class="credit">作者：Jack · © Jack 版权所有 · 禁止任何形式转载</p>
+      </div>
+      <div class="wm">Jack 禁止转载</div>
+    </div>
+
+    <div id="hud" class="hidden">
+      <div class="crosshair" id="crosshair">
+        <i class="ch h l"></i><i class="ch h r"></i><i class="ch v t"></i><i class="ch v b"></i>
+      </div>
+      <div id="hitmarker"></div>
+      <div id="hurt"></div>
+      <div class="topbar">
+        <div class="pill"><span>波次</span><b id="hudWave">1 / 8</b></div>
+        <div class="pill obj" id="hudObj">清剿本波敌军</div>
+        <div class="pill"><span>击杀</span><b id="hudKills">0</b></div>
+        <div class="pill"><span>分数</span><b id="hudScore">0</b></div>
+      </div>
+      <div class="bottombar">
+        <div class="hpbox">
+          <div class="hp-label">生命</div>
+          <div class="hp-row"><b id="hudHp">100</b><small id="hudHpMax">/ 100</small></div>
+          <div class="bar"><i id="hpFill"></i></div>
+        </div>
+        <div class="weapbox">
+          <div id="hudWeapon">锈鹰手枪</div>
+          <div class="ammo"><b id="hudAmmo">12</b><small id="hudReserve">/ 84</small></div>
+        </div>
+      </div>
+      <div id="waveBanner" class="banner"></div>
+      <div id="pickupToast" class="toast"></div>
+      <div class="wm in-game">作者：Jack · 禁止转载</div>
+    </div>
+
+    <div id="upgrade" class="overlay hidden">
+      <div class="panel">
+        <div class="kicker">WAVE CLEAR</div>
+        <h2 id="upTitle">波次完成 — 选择补给</h2>
+        <p id="upSub" class="sub">下一波会更凶。挑一件能让你活下去的东西。</p>
+        <div class="cards" id="upCards"></div>
+      </div>
+    </div>
+
+    <div id="pause" class="overlay hidden">
+      <div class="panel thin">
+        <h2>战术暂停</h2>
+        <div class="opt-row">
+          <label>画质
+            <select id="selQuality2">
+              <option value="high">高</option>
+              <option value="medium">中</option>
+              <option value="low">低</option>
+            </select>
+          </label>
+          <label class="chk"><input type="checkbox" id="chkMute2" /> 静音</label>
+        </div>
+        <div class="title-actions col">
+          <button id="btnResume" class="btn primary">继续突击</button>
+          <button id="btnToTitle" class="btn">返回标题</button>
+        </div>
+        <p class="credit">作者：Jack · © Jack 版权所有 · 禁止任何形式转载</p>
+      </div>
+    </div>
+
+    <div id="dead" class="overlay hidden">
+      <div class="panel thin">
+        <h2>你倒下了</h2>
+        <p class="sub">沙尘会掩埋犹豫的人。本波敌军已重新集结。</p>
+        <div class="title-actions col">
+          <button id="btnRetry" class="btn primary">重试本波</button>
+          <button id="btnDeadTitle" class="btn">返回标题</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="results" class="overlay hidden">
+      <div class="panel">
+        <div class="kicker">RAID COMPLETE</div>
+        <h2>突击结算</h2>
+        <div class="grade" id="resGrade">A</div>
+        <ul class="stats" id="resStats"></ul>
+        <p class="credit">作者：Jack · © Jack 版权所有 · 禁止任何形式转载</p>
+        <div class="title-actions col">
+          <button id="btnAgain" class="btn primary">再来一次</button>
+          <button id="btnResTitle" class="btn">返回标题</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="touch" class="hidden">
+      <div id="stick" class="stick"><i id="stickKnob"></i></div>
+      <div id="lookZone"></div>
+      <div class="touch-btns">
+        <button data-act="jump">跳</button>
+        <button data-act="reload">弹</button>
+        <button data-act="ads">瞄</button>
+        <button data-act="swap">枪</button>
+        <button data-act="fire" class="fire">射</button>
+      </div>
+    </div>
+  </div>
+  <script type="module" src="./js/main.js"></script>
+</body>
+</html>
