@@ -50,7 +50,7 @@ export class Enemy {
   applyDamage(amt) {
     if (!this.alive) return 0;
     this.hp -= amt;
-    this.flash = 0.12;
+    this.flash = 0.18;
     if (this.hp <= 0) {
       this.hp = 0;
       this.alive = false;
@@ -65,7 +65,7 @@ export class Enemy {
     this.age += dt;
     if (this.flash > 0) {
       this.flash -= dt;
-      const em = this.flash > 0 ? 0.55 : 0;
+      const em = this.flash > 0 ? 0.9 : 0;
       for (const m of this.root.userData.bodyMats) m.emissive = new THREE.Color(em, 0.05, 0.02);
     }
     if (this.state === 'dead') {
@@ -113,7 +113,19 @@ export class Enemy {
 
     const next = world.collide(me.x + mx * dt, 0.9, me.z + mz * dt, this.radius, this.height);
     me.x = next.x; me.z = next.z; me.y = 0;
-    this.root.position.y = Math.abs(Math.sin(this.age * 8)) * 0.03;
+    const spd = Math.hypot(mx, mz);
+    this.walkT = (this.walkT || 0) + dt * (2.4 + spd * 1.7);
+    const amp = THREE.MathUtils.clamp(spd / 3.4, 0.12, 1);
+    const s = Math.sin(this.walkT);
+    const c = Math.cos(this.walkT);
+    this.root.position.y = Math.abs(s) * 0.045 * amp;
+    const j = this.root.userData.joints || {};
+    if (j.hipL) j.hipL.rotation.x = s * 0.62 * amp;
+    if (j.hipR) j.hipR.rotation.x = -s * 0.62 * amp;
+    if (j.kneeL) j.kneeL.rotation.x = Math.max(0, -s) * 0.55 * amp;
+    if (j.kneeR) j.kneeR.rotation.x = Math.max(0, s) * 0.55 * amp;
+    if (j.shL) j.shL.rotation.x = -s * 0.38 * amp;
+    if (j.shR) j.shR.rotation.x = s * 0.38 * amp;
 
     if (this.type === 'midboss' && this.cd <= 0 && dist < 11 && Math.random() < 0.35) {
       this.telegraph = 0.7;
@@ -187,6 +199,9 @@ export class Combat {
     this.fx = [];
     this.ray = new THREE.Raycaster();
     this._n = new THREE.Vector3();
+    this.casingGeo = new THREE.CylinderGeometry(0.004, 0.0045, 0.016, 6);
+    this.casingMat = new THREE.MeshStandardMaterial({ color: 0xc4a04a, metalness: 0.85, roughness: 0.32 });
+    this.decalGeo = new THREE.CircleGeometry(0.07, 10);
   }
 
   spawn(type, x, z) {
@@ -220,6 +235,8 @@ export class Combat {
       const wh = this.world.hitWorld(origin, d, bestDist);
       if (wh && wh.distance < bestDist) {
         this.spark(wh.point);
+        this.impact(wh.point, wh.normal || (wh.face && wh.face.normal) || new THREE.Vector3(0, 1, 0), false);
+        this.tracer(origin, d, wh.distance);
         continue;
       }
       if (best) {
@@ -229,7 +246,10 @@ export class Combat {
         score += sc;
         hits += 1;
         if (sc > 0) killed.push(best);
-        this.spark(origin.clone().addScaledVector(d, bestDist), true);
+        const hp = origin.clone().addScaledVector(d, bestDist);
+        this.spark(hp, true);
+        this.impact(hp, d.clone().multiplyScalar(-1), true);
+        this.tracer(origin, d, bestDist);
       }
     }
     return { hits, score, killed };
@@ -304,11 +324,54 @@ export class Combat {
   }
 
   spark(p, blood = false) {
-    const mat = new THREE.MeshBasicMaterial({ color: blood ? 0x8a2010 : 0xffd090, transparent: true, opacity: 0.9 });
-    const m = new THREE.Mesh(new THREE.SphereGeometry(0.05, 6, 5), mat);
+    const mat = new THREE.MeshBasicMaterial({ color: blood ? 0x8a2010 : 0xffd090, transparent: true, opacity: 0.95 });
+    const m = new THREE.Mesh(new THREE.SphereGeometry(blood ? 0.07 : 0.055, 6, 5), mat);
     m.position.copy(p);
     this.scene.add(m);
-    this.fx.push({ mesh: m, t: 0.18, max: 0.18, kind: 'spark' });
+    this.fx.push({ mesh: m, t: 0.22, max: 0.22, kind: 'spark' });
+  }
+
+  impact(point, normal, blood) {
+    const n = (normal || new THREE.Vector3(0, 1, 0)).clone().normalize();
+    const mat = new THREE.MeshBasicMaterial({
+      color: blood ? 0x5a1210 : 0x2a2218,
+      transparent: true,
+      opacity: blood ? 0.72 : 0.62,
+      depthWrite: false,
+      polygonOffset: true,
+      polygonOffsetFactor: -2
+    });
+    const m = new THREE.Mesh(this.decalGeo, mat);
+    m.scale.setScalar(blood ? 0.72 : 1);
+    m.position.copy(point).addScaledVector(n, 0.014);
+    m.lookAt(point.clone().add(n));
+    this.scene.add(m);
+    this.fx.push({ mesh: m, t: 7.5, max: 7.5, kind: 'decal' });
+  }
+
+  tracer(origin, dir, dist) {
+    const len = Math.min(dist, 16);
+    if (len < 0.4) return;
+    const mat = new THREE.MeshBasicMaterial({ color: 0xffd090, transparent: true, opacity: 0.55, depthWrite: false });
+    const m = new THREE.Mesh(new THREE.BoxGeometry(0.01, 0.01, len), mat);
+    m.position.copy(origin).addScaledVector(dir, len * 0.5);
+    m.lookAt(origin.clone().add(dir));
+    this.scene.add(m);
+    this.fx.push({ mesh: m, t: 0.055, max: 0.055, kind: 'tracer' });
+  }
+
+  ejectCasing(origin, right, up) {
+    const m = new THREE.Mesh(this.casingGeo, this.casingMat);
+    m.position.copy(origin);
+    m.castShadow = false;
+    this.scene.add(m);
+    const vel = right.clone().multiplyScalar(1.5 + Math.random() * 0.9)
+      .add(up.clone().multiplyScalar(2.4 + Math.random() * 0.8))
+      .add(new THREE.Vector3((Math.random() - 0.5) * 0.35, 0, (Math.random() - 0.5) * 0.3));
+    this.fx.push({
+      mesh: m, t: 1.5, max: 1.5, kind: 'casing', vel,
+      spin: new THREE.Vector3(8 + Math.random() * 10, 4, 6 + Math.random() * 8)
+    });
   }
 
   update(dt, player) {
@@ -322,8 +385,27 @@ export class Combat {
     for (let i = this.fx.length - 1; i >= 0; i--) {
       const f = this.fx[i];
       f.t -= dt;
-      if (f.kind === 'boom') f.mesh.scale.setScalar(1 + (1 - f.t / f.max) * 6);
-      f.mesh.material.opacity = Math.max(0, f.t / f.max * (f.kind === 'ring' ? 0.4 : 0.85));
+      if (f.kind === 'casing') {
+        f.vel.y -= 16 * dt;
+        f.mesh.position.addScaledVector(f.vel, dt);
+        if (f.mesh.position.y < 0.015) {
+          f.mesh.position.y = 0.015;
+          f.vel.y *= -0.22;
+          f.vel.x *= 0.55;
+          f.vel.z *= 0.55;
+        }
+        f.mesh.rotation.x += f.spin.x * dt;
+        f.mesh.rotation.z += f.spin.z * dt;
+      } else if (f.kind === 'decal') {
+        f.mesh.material.opacity = Math.max(0, Math.min(0.68, f.t * 0.35));
+      } else if (f.kind === 'tracer') {
+        f.mesh.material.opacity = Math.max(0, f.t / f.max * 0.55);
+      } else {
+        if (f.kind === 'boom') f.mesh.scale.setScalar(1 + (1 - f.t / f.max) * 6);
+        if (f.mesh.material && f.mesh.material.opacity != null) {
+          f.mesh.material.opacity = Math.max(0, f.t / f.max * (f.kind === 'ring' ? 0.42 : 0.88));
+        }
+      }
       if (f.t <= 0) { this.scene.remove(f.mesh); this.fx.splice(i, 1); }
     }
   }

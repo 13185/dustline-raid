@@ -76,6 +76,14 @@ def parent(child, root):
     child.parent = root
 
 
+def parent_keep(child, par):
+    bpy.context.view_layer.update()
+    mw = child.matrix_world.copy()
+    child.parent = par
+    child.matrix_parent_inverse = par.matrix_world.inverted()
+    child.matrix_world = mw
+
+
 def assign(obj, mat):
     if mat is None:
         return obj
@@ -233,9 +241,9 @@ def build_textures():
         0.08 + 0.02 * fbm(u * 10, v * 10, 3, 14),
     ))
     T['khaki'] = make_image('tex_khaki', 256, lambda u, v: (
-        0.72 + 0.12 * fbm(u * 4, v * 4, 5, 21) - 0.08 * fbm(u * 12, v * 3, 3, 22),
-        0.60 + 0.10 * fbm(u * 4, v * 4, 5, 23) - 0.06 * fbm(u * 12, v * 3, 3, 24),
-        0.34 + 0.08 * fbm(u * 4, v * 4, 5, 25),
+        0.58 + 0.10 * fbm(u * 4, v * 4, 5, 21) - 0.08 * fbm(u * 12, v * 3, 3, 22),
+        0.52 + 0.09 * fbm(u * 4, v * 4, 5, 23) - 0.05 * fbm(u * 12, v * 3, 3, 24),
+        0.34 + 0.07 * fbm(u * 4, v * 4, 5, 25),
     ))
     T['denim'] = make_image('tex_denim', 256, lambda u, v: (
         0.18 + 0.05 * fbm(u * 8, v * 8, 4, 31) + 0.04 * (0.5 + 0.5 * math.sin(u * 140)),
@@ -266,7 +274,7 @@ def build_textures():
 
 
 def build_gun_mats(T):
-    return {
+    M = {
         'metal': principled('GunMetal', (0.18, 0.19, 0.21), 0.32, 0.88, T['metal']),
         'slide': principled('GunSlide', (0.08, 0.085, 0.09), 0.22, 0.9, T['metal']),
         'worn': principled('GunWorn', (0.24, 0.19, 0.13), 0.48, 0.55, T['worn']),
@@ -276,8 +284,95 @@ def build_gun_mats(T):
         'rust': principled('GunRust', (0.42, 0.22, 0.10), 0.72, 0.28, T['worn']),
         'tan': principled('GunTan', (0.55, 0.44, 0.26), 0.7, 0.08, T['khaki']),
         'olive': principled('GunOlive', (0.28, 0.30, 0.16), 0.74, 0.05),
+        'scope': principled('GunScope', (0.08, 0.085, 0.09), 0.26, 0.88, T['metal']),
+        'hood': principled('GunHood', (0.012, 0.012, 0.014), 0.62, 0.08),
+        'lens': principled('GunLens', (0.04, 0.08, 0.06), 0.03, 0.08, alpha=0.07),
+        'skin': principled('FPSkin', (0.64, 0.44, 0.30), 0.64, 0.04),
+        'glove': principled('FPGlove', (0.22, 0.14, 0.09), 0.82, 0.04),
+        'sleeve': principled('FPSleeve', (0.30, 0.28, 0.18), 0.84, 0.04, T['khaki']),
+        'reticle': None,
     }
+    M['reticle'] = make_reticle_mat()
+    return M
 
+
+
+def make_reticle_mat():
+    size = 256
+    img = bpy.data.images.new('tex_reticle', size, size, alpha=True)
+    px = [0.0] * (size * size * 4)
+    cx = cy = size * 0.5
+    for y in range(size):
+        for x in range(size):
+            dx, dy = x - cx, y - cy
+            r = math.hypot(dx, dy)
+            i = (y * size + x) * 4
+            on = False
+            if (abs(dx) < 2.0 and 5 < abs(dy) < 72) or (abs(dy) < 2.0 and 5 < abs(dx) < 72):
+                on = True
+            if 80 < r < 88:
+                on = True
+            if on:
+                px[i:i + 4] = [0.25, 1.0, 0.38, 0.92]
+    img.pixels = px
+    img.pack()
+    mat = bpy.data.materials.new('GunReticle')
+    mat.use_nodes = True
+    mat.blend_method = 'BLEND'
+    mat.shadow_method = 'NONE'
+    nt = mat.node_tree
+    bsdf = nt.nodes.get('Principled BSDF')
+    tex = nt.nodes.new('ShaderNodeTexImage')
+    tex.image = img
+    nt.links.new(tex.outputs['Color'], bsdf.inputs['Base Color'])
+    nt.links.new(tex.outputs['Alpha'], bsdf.inputs['Alpha'])
+    if 'Emission Color' in bsdf.inputs:
+        nt.links.new(tex.outputs['Color'], bsdf.inputs['Emission Color'])
+        bsdf.inputs['Emission Strength'].default_value = 1.8
+    bsdf.inputs['Roughness'].default_value = 0.35
+    return mat
+
+
+def add_fp_hands(root, M, kind='rifle'):
+    """FPS arms come up from the bottom of the frame, not down the camera axis."""
+    glove, skin, sleeve = M['glove'], M['skin'], M['sleeve']
+    rh = new_empty('FPHandR', (0.026, -0.014, -0.030))
+    parent(rh, root)
+    parent_keep(mesh_cube('FPPalmR', (0.024, -0.014, -0.034), (0.024, 0.048, 0.042), glove, 0.006), rh)
+    for i, (fy, fz) in enumerate(((-0.024, -0.052), (-0.010, -0.056), (0.004, -0.054), (0.016, -0.048))):
+        parent_keep(mesh_cube(f'FPFingerR{i}', (0.004, fy, fz), (0.034, 0.012, 0.016), glove, 0.003, rot=(0.2, 0.45, 0.12)), rh)
+    parent_keep(mesh_cube('FPThumbR', (0.016, 0.012, -0.014), (0.014, 0.032, 0.014), glove, 0.003, rot=(0.4, 0.75, 0.08)), rh)
+    parent_keep(cyl_between('FPArmR', (0.030, -0.028, -0.032), (0.078, -0.085, -0.205), 0.022, skin, 0.003, verts=14), rh)
+    parent_keep(cyl_between('FPSleeveR', (0.052, -0.055, -0.11), (0.090, -0.11, -0.27), 0.032, sleeve, 0.005, verts=14), rh)
+    if kind == 'grenade':
+        return
+    if kind == 'pistol':
+        palm = (-0.016, 0.030, 0.000)
+        wrist = (-0.018, 0.028, -0.004)
+        elbow = (-0.075, -0.04, -0.16)
+    elif kind == 'shotgun':
+        palm = (-0.026, 0.132, 0.010)
+        wrist = (-0.028, 0.128, 0.006)
+        elbow = (-0.085, 0.03, -0.15)
+    else:
+        palm = (-0.028, 0.148, 0.010)
+        wrist = (-0.030, 0.140, 0.006)
+        elbow = (-0.088, 0.035, -0.155)
+    lh = new_empty('FPHandL', palm)
+    parent(lh, root)
+    parent_keep(mesh_cube('FPPalmL', palm, (0.024, 0.044, 0.036), glove, 0.006), lh)
+    px, py, pz = palm
+    for i, fy in enumerate((-0.014, 0.000, 0.012, 0.022)):
+        parent_keep(mesh_cube(f'FPFingerL{i}', (px + 0.014, py + fy, pz - 0.018), (0.026, 0.011, 0.016), glove, 0.003, rot=(0.12, -0.4, -0.18)), lh)
+    parent_keep(cyl_between('FPArmL', wrist, elbow, 0.022, skin, 0.003, verts=14), lh)
+    sleeve_a = (wrist[0] * 0.4 + elbow[0] * 0.6, wrist[1] * 0.4 + elbow[1] * 0.6, wrist[2] * 0.4 + elbow[2] * 0.6)
+    sleeve_b = (elbow[0] - 0.015, elbow[1] - 0.03, elbow[2] - 0.08)
+    parent_keep(cyl_between('FPSleeveL', sleeve_a, sleeve_b, 0.032, sleeve, 0.005, verts=14), lh)
+
+
+def add_screws(root, M, spots):
+    for i, (x, y, z) in enumerate(spots):
+        parent(mesh_cyl(f'Screw{i}_{root.name}', (x, y, z), 0.0024, 0.004, M['metal'], 0.0003, verts=8), root)
 
 # Barrel along +Y so glTF Y-up export maps it to -Z (camera forward).
 # Grip along -Z. Right +X.
@@ -317,8 +412,10 @@ def build_pistol(M):
     parent(rs, root)
     parent(notch, root)
     parent(fs, root)
-    parent(new_empty('muzzle', (0, 0.168, 0.034)), root)
-    parent(new_empty('sight', (0, 0.02, 0.058)), root)
+    parent(new_empty('muzzle_Pistol', (0, 0.168, 0.034)), root)
+    parent(new_empty('sight_Pistol', (0, 0.02, 0.058)), root)
+    add_screws(root, M, [(0.011, 0.04, 0.030), (-0.011, 0.04, 0.030), (0.011, -0.02, 0.030)])
+    add_fp_hands(root, M, 'pistol')
     return root
 
 
@@ -354,8 +451,10 @@ def build_smg(M):
     parent(optic, root)
     glass = mesh_cyl('SMGGlass', (0, 0.038, 0.074), 0.009, 0.006, M['glass'], 0.0, rot=(math.pi / 2, 0, 0), verts=12)
     parent(glass, root)
-    parent(new_empty('muzzle', (0, 0.268, 0.028)), root)
-    parent(new_empty('sight', (0, 0.01, 0.078)), root)
+    parent(new_empty('muzzle_SMG', (0, 0.268, 0.028)), root)
+    parent(new_empty('sight_SMG', (0, 0.01, 0.078)), root)
+    add_screws(root, M, [(0.012, 0.05, 0.038), (-0.012, -0.02, 0.038)])
+    add_fp_hands(root, M, 'smg')
     return root
 
 
@@ -390,25 +489,26 @@ def build_rifle(M):
     parent(pad, root)
     stock_c = mesh_cyl('RifleStockC', (0, -0.10, 0.018), 0.011, 0.08, M['polymer'], 0.001, rot=(math.pi / 2, 0, 0), verts=10)
     parent(stock_c, root)
-    # readable scope
-    tube = mesh_cyl('ScopeTube', (0, 0.03, 0.078), 0.016, 0.088, M['slide'], 0.0012, rot=(math.pi / 2, 0, 0), verts=18)
-    parent(tube, root)
-    objl = mesh_cyl('ScopeObj', (0, 0.082, 0.078), 0.021, 0.022, M['slide'], 0.0012, rot=(math.pi / 2, 0, 0), verts=18)
-    parent(objl, root)
-    ocu = mesh_cyl('ScopeOcu', (0, -0.022, 0.078), 0.018, 0.018, M['slide'], 0.0012, rot=(math.pi / 2, 0, 0), verts=16)
-    parent(ocu, root)
-    glass_f = mesh_cyl('ScopeGlassF', (0, 0.094, 0.078), 0.017, 0.004, M['glass'], 0.0, rot=(math.pi / 2, 0, 0), verts=16)
-    glass_r = mesh_cyl('ScopeGlassR', (0, -0.032, 0.078), 0.014, 0.004, M['glass'], 0.0, rot=(math.pi / 2, 0, 0), verts=16)
-    parent(glass_f, root)
-    parent(glass_r, root)
-    tur1 = mesh_cyl('ScopeTurret', (0, 0.03, 0.100), 0.007, 0.016, M['metal'], 0.0006, verts=12)
-    tur2 = mesh_cyl('ScopeTurretW', (0.018, 0.03, 0.078), 0.006, 0.014, M['metal'], 0.0006, rot=(0, math.pi / 2, 0), verts=12)
-    parent(tur1, root)
-    parent(tur2, root)
-    mount = mesh_cube('ScopeMount', (0, 0.03, 0.056), (0.016, 0.055, 0.018), M['metal'], 0.001)
-    parent(mount, root)
-    parent(new_empty('muzzle', (0, 0.562, 0.022)), root)
-    parent(new_empty('sight', (0, -0.028, 0.078)), root)
+    # real optic: dark metal hood, clear lens, green reticle
+    parent(mesh_cyl('ScopeTube', (0, 0.03, 0.078), 0.017, 0.090, M['scope'], 0.0014, rot=(math.pi / 2, 0, 0), verts=24), root)
+    parent(mesh_cyl('ScopeObj', (0, 0.084, 0.078), 0.022, 0.024, M['scope'], 0.0014, rot=(math.pi / 2, 0, 0), verts=24), root)
+    parent(mesh_cyl('ScopeOcu', (0, -0.024, 0.078), 0.019, 0.020, M['scope'], 0.0014, rot=(math.pi / 2, 0, 0), verts=20), root)
+    parent(mesh_torus('ScopeHood', (0, -0.034, 0.078), 0.0165, 0.0034, M['hood'], rot=(math.pi / 2, 0, 0), major_seg=22, minor_seg=8), root)
+    parent(mesh_cyl('ScopeGlassF', (0, 0.096, 0.078), 0.0175, 0.003, M['lens'], 0.0, rot=(math.pi / 2, 0, 0), verts=20), root)
+    parent(mesh_cyl('ScopeGlassR', (0, -0.016, 0.078), 0.013, 0.002, M['lens'], 0.0, rot=(math.pi / 2, 0, 0), verts=20), root)
+    bpy.ops.mesh.primitive_plane_add(size=0.024, location=(0, -0.020, 0.078), rotation=(math.pi / 2, 0, 0))
+    ret = bpy.context.active_object
+    ret.name = 'ScopeReticle'
+    apply_tr(ret)
+    assign(ret, M['reticle'])
+    parent(ret, root)
+    parent(mesh_cyl('ScopeTurret', (0, 0.03, 0.102), 0.0075, 0.017, M['metal'], 0.0006, verts=12), root)
+    parent(mesh_cyl('ScopeTurretW', (0.020, 0.03, 0.078), 0.0065, 0.015, M['metal'], 0.0006, rot=(0, math.pi / 2, 0), verts=12), root)
+    parent(mesh_cube('ScopeMount', (0, 0.03, 0.056), (0.016, 0.055, 0.018), M['metal'], 0.001), root)
+    add_screws(root, M, [(0.012, 0.08, 0.038), (-0.012, -0.01, 0.038), (0.012, 0.22, 0.036)])
+    parent(new_empty('muzzle_Rifle', (0, 0.562, 0.022)), root)
+    parent(new_empty('sight_Rifle', (0, -0.022, 0.078)), root)
+    add_fp_hands(root, M, 'rifle')
     return root
 
 
@@ -436,8 +536,9 @@ def build_shotgun(M):
     parent(trigger, root)
     guard = mesh_torus('SGGuard', (0, 0.030, 0.000), 0.015, 0.003, M['worn'], rot=(0, math.pi / 2, 0))
     parent(guard, root)
-    parent(new_empty('muzzle', (0, 0.385, 0.030)), root)
-    parent(new_empty('sight', (0, 0.05, 0.044)), root)
+    parent(new_empty('muzzle_Shotgun', (0, 0.385, 0.030)), root)
+    parent(new_empty('sight_Shotgun', (0, 0.05, 0.044)), root)
+    add_fp_hands(root, M, 'shotgun')
     return root
 
 
@@ -454,8 +555,9 @@ def build_grenade(M):
     parent(spoon, root)
     pin = mesh_torus('NadePin', (0.012, 0, 0.058), 0.010, 0.0018, M['brass'], rot=(0, math.pi / 2, 0.4), major_seg=14, minor_seg=8)
     parent(pin, root)
-    parent(new_empty('muzzle', (0, 0, 0.06)), root)
-    parent(new_empty('sight', (0, 0, 0.03)), root)
+    parent(new_empty('muzzle_Nade', (0, 0, 0.06)), root)
+    parent(new_empty('sight_Nade', (0, 0, 0.03)), root)
+    add_fp_hands(root, M, 'grenade')
     return root
 
 
@@ -465,16 +567,16 @@ def char_mats(prefix, T, cfg):
         'jacket': principled(f'{prefix}_Jacket', cfg['jacket'], 0.72, 0.04, T['khaki']),
         'pants': principled(f'{prefix}_Pants', cfg['pants'], 0.78, 0.03, pants_tex),
         'vest': principled(f'{prefix}_Vest', cfg['vest'], 0.62, 0.10, T['canvas']),
-        'knit': principled(f'{prefix}_Knit', cfg['knit'], 0.90, 0.02, T['knit']),
+        'knit': principled(f'{prefix}_Knit', cfg['knit'], 0.88, 0.02),
         'skin': principled(f'{prefix}_Skin', cfg['skin'], 0.62, 0.04),
         'boots': principled(f'{prefix}_Boots', cfg['boots'], 0.7, 0.08, T['worn']),
         'pouch': principled(f'{prefix}_Pouch', cfg['pouch'], 0.74, 0.06, T['canvas']),
         'metal': principled(f'{prefix}_Metal', (0.28, 0.30, 0.32), 0.36, 0.78, T['metal']),
         'strap': principled(f'{prefix}_Strap', (0.38, 0.30, 0.18), 0.8, 0.05),
         'eye': principled(f'{prefix}_Eye', (0.07, 0.06, 0.05), 0.45, 0.05),
-        'helm': principled(f'{prefix}_Helm', cfg.get('helm', (0.45, 0.48, 0.30)), 0.45, 0.35, T['metal']),
+        'helm': principled(f'{prefix}_Helm', cfg.get('helm', (0.32, 0.34, 0.22)), 0.78, 0.08),
         'beanie': principled(f'{prefix}_Beanie', cfg.get('beanie_col', (0.38, 0.28, 0.18)), 0.88, 0.03, T['knit']),
-        'iron': principled(f'{prefix}_Iron', (0.72, 0.74, 0.76), 0.30, 0.72, T['metal']),
+        'iron': principled(f'{prefix}_Iron', (0.42, 0.44, 0.46), 0.48, 0.42, T['metal']),
         'plate': principled(f'{prefix}_Plate', (0.48, 0.50, 0.46), 0.40, 0.62, T['metal']),
         'glow': principled(f'{prefix}_Glow', (1.0, 0.48, 0.16), 0.28, 0.1, emit=(1.0, 0.38, 0.08), emit_str=2.4),
         'blade': principled(f'{prefix}_Blade', (0.55, 0.56, 0.58), 0.22, 0.9, T['metal']),
@@ -520,11 +622,12 @@ def build_character(name, T, cfg):
     parent(mesh_cube(f'{name}_Chest', (0, 0.03, 1.38), (0.48, 0.26, 0.18), M['jacket'], 0.038), root)
     parent(mesh_cyl(f'{name}_Neck', (0, 0.0, 1.52), 0.055, 0.10, M['knit'], 0.008, verts=12), root)
     # head / balaclava
-    parent(mesh_sphere(f'{name}_Head', (0, 0.01, 1.68), 0.135, M['knit'], scale=(1.0, 1.08, 1.12), segs=18), root)
+    parent(mesh_sphere(f'{name}_Head', (0, 0.01, 1.68), 0.135, M['knit'], scale=(1.0, 1.08, 1.12), segs=24), root)
     parent(mesh_cube(f'{name}_Jaw', (0, 0.02, 1.575), (0.20, 0.20, 0.10), M['knit'], 0.028), root)
-    parent(mesh_cube(f'{name}_Slit', (0, -0.128, 1.698), (0.20, 0.055, 0.055), M['skin'], 0.012), root)
-    parent(mesh_cube(f'{name}_EyeL', (-0.038, -0.150, 1.700), (0.038, 0.018, 0.022), M['eye'], 0.004), root)
-    parent(mesh_cube(f'{name}_EyeR', (0.038, -0.150, 1.700), (0.038, 0.018, 0.022), M['eye'], 0.004), root)
+    parent(mesh_cube(f'{name}_Brow', (0, -0.118, 1.732), (0.20, 0.04, 0.028), M['knit'], 0.01), root)
+    parent(mesh_cube(f'{name}_Slit', (0, -0.140, 1.696), (0.24, 0.074, 0.068), M['skin'], 0.012), root)
+    parent(mesh_cube(f'{name}_EyeL', (-0.044, -0.164, 1.698), (0.044, 0.022, 0.028), M['eye'], 0.004), root)
+    parent(mesh_cube(f'{name}_EyeR', (0.044, -0.164, 1.698), (0.044, 0.022, 0.028), M['eye'], 0.004), root)
     if cfg.get('beanie'):
         parent(mesh_sphere(f'{name}_Beanie', (0, 0.0, 1.78), 0.138, M['beanie'], scale=(1.08, 1.12, 0.62), segs=16), root)
         parent(mesh_cube(f'{name}_BeanieCuff', (0, 0.0, 1.74), (0.28, 0.28, 0.055), M['beanie'], 0.018), root)
@@ -537,27 +640,51 @@ def build_character(name, T, cfg):
     if cfg.get('visor_glow'):
         parent(mesh_cube(f'{name}_Visor', (0, -0.145, 1.70), (0.16, 0.03, 0.035), M['glow'], 0.004), root)
         parent(mesh_sphere(f'{name}_HelmHeavy', (0, 0.0, 1.74), 0.155, M['plate'], scale=(1.18, 1.2, 0.78), segs=16), root)
-    # shoulders + arms (right arm aims -Y)
-    parent(mesh_sphere(f'{name}_ShL', (-0.27, 0.02, 1.42), 0.09, M['jacket'], segs=14), root)
-    parent(mesh_sphere(f'{name}_ShR', (0.27, 0.02, 1.42), 0.09, M['jacket'], segs=14), root)
-    parent(cyl_between(f'{name}_UpL', (-0.28, 0.02, 1.40), (-0.36, 0.10, 1.14), 0.055, M['jacket']), root)
-    parent(cyl_between(f'{name}_LoL', (-0.36, 0.10, 1.14), (-0.24, -0.10, 1.02), 0.046, M['jacket']), root)
-    parent(mesh_sphere(f'{name}_HandL', (-0.24, -0.14, 1.00), 0.055, M['knit'], segs=12), root)
-    parent(cyl_between(f'{name}_UpR', (0.28, 0.02, 1.40), (0.22, -0.12, 1.20), 0.055, M['jacket']), root)
-    parent(cyl_between(f'{name}_LoR', (0.22, -0.12, 1.20), (0.14, -0.30, 1.13), 0.046, M['jacket']), root)
-    parent(mesh_sphere(f'{name}_HandR', (0.12, -0.34, 1.11), 0.055, M['knit'], segs=12), root)
-    # legs + boots
-    parent(cyl_between(f'{name}_ThL', (-0.11, 0.03, 0.88), (-0.13, 0.04, 0.50), 0.078, M['pants']), root)
-    parent(cyl_between(f'{name}_ThR', (0.11, 0.03, 0.88), (0.13, 0.04, 0.50), 0.078, M['pants']), root)
-    parent(cyl_between(f'{name}_CaL', (-0.13, 0.04, 0.50), (-0.13, 0.06, 0.18), 0.062, M['pants']), root)
-    parent(cyl_between(f'{name}_CaR', (0.13, 0.04, 0.50), (0.13, 0.06, 0.18), 0.062, M['pants']), root)
-    parent(mesh_cube(f'{name}_BootL', (-0.13, 0.05, 0.085), (0.13, 0.24, 0.12), M['boots'], 0.018), root)
-    parent(mesh_cube(f'{name}_BootR', (0.13, 0.05, 0.085), (0.13, 0.24, 0.12), M['boots'], 0.018), root)
+    parent(mesh_cube(f'{name}_Collar', (0, 0.02, 1.50), (0.30, 0.22, 0.08), M['jacket'], 0.02), root)
+    parent(mesh_cube(f'{name}_Hem', (0, 0.02, 1.00), (0.44, 0.26, 0.10), M['jacket'], 0.03), root)
+    parent(mesh_cube(f'{name}_Belt', (0, 0.02, 0.96), (0.38, 0.22, 0.06), M['strap'], 0.01), root)
+    # jointed shoulders / arms
+    parent(mesh_sphere(f'{name}_ShL', (-0.27, 0.02, 1.42), 0.09, M['jacket'], segs=16), root)
+    parent(mesh_sphere(f'{name}_ShR', (0.27, 0.02, 1.42), 0.09, M['jacket'], segs=16), root)
+    jshL = new_empty(f'{name}_JShL', (-0.28, 0.02, 1.40)); parent(jshL, root)
+    jshR = new_empty(f'{name}_JShR', (0.28, 0.02, 1.40)); parent(jshR, root)
+    parent_keep(cyl_between(f'{name}_UpL', (-0.28, 0.02, 1.40), (-0.36, 0.10, 1.14), 0.055, M['jacket'], verts=16), jshL)
+    parent_keep(cyl_between(f'{name}_LoL', (-0.36, 0.10, 1.14), (-0.24, -0.10, 1.02), 0.046, M['jacket'], verts=16), jshL)
+    parent_keep(mesh_sphere(f'{name}_HandL', (-0.24, -0.14, 1.00), 0.055, M['knit'], segs=14), jshL)
+    parent_keep(cyl_between(f'{name}_UpR', (0.28, 0.02, 1.40), (0.22, -0.12, 1.20), 0.055, M['jacket'], verts=16), jshR)
+    parent_keep(cyl_between(f'{name}_LoR', (0.22, -0.12, 1.20), (0.14, -0.30, 1.13), 0.046, M['jacket'], verts=16), jshR)
+    parent_keep(mesh_sphere(f'{name}_HandR', (0.12, -0.34, 1.11), 0.055, M['knit'], segs=14), jshR)
+    # jointed legs
+    jhipL = new_empty(f'{name}_JHipL', (-0.11, 0.03, 0.88)); parent(jhipL, root)
+    jhipR = new_empty(f'{name}_JHipR', (0.11, 0.03, 0.88)); parent(jhipR, root)
+    jkL = new_empty(f'{name}_JKneeL', (-0.13, 0.04, 0.50)); parent_keep(jkL, jhipL)
+    jkR = new_empty(f'{name}_JKneeR', (0.13, 0.04, 0.50)); parent_keep(jkR, jhipR)
+    parent_keep(cyl_between(f'{name}_ThL', (-0.11, 0.03, 0.88), (-0.13, 0.04, 0.50), 0.078, M['pants'], verts=16), jhipL)
+    parent_keep(cyl_between(f'{name}_ThR', (0.11, 0.03, 0.88), (0.13, 0.04, 0.50), 0.078, M['pants'], verts=16), jhipR)
+    parent_keep(cyl_between(f'{name}_CaL', (-0.13, 0.04, 0.50), (-0.13, 0.06, 0.18), 0.062, M['pants'], verts=16), jkL)
+    parent_keep(cyl_between(f'{name}_CaR', (0.13, 0.04, 0.50), (0.13, 0.06, 0.18), 0.062, M['pants'], verts=16), jkR)
+    parent_keep(mesh_cube(f'{name}_BootL', (-0.13, 0.05, 0.085), (0.13, 0.24, 0.12), M['boots'], 0.018), jkL)
+    parent_keep(mesh_cube(f'{name}_BootR', (0.13, 0.05, 0.085), (0.13, 0.24, 0.12), M['boots'], 0.018), jkR)
+    parent_keep(mesh_cube(f'{name}_ToeL', (-0.13, -0.04, 0.055), (0.11, 0.10, 0.07), M['boots'], 0.012), jkL)
+    parent_keep(mesh_cube(f'{name}_ToeR', (0.13, -0.04, 0.055), (0.11, 0.10, 0.07), M['boots'], 0.012), jkR)
+    parent_keep(mesh_cube(f'{name}_KneeL', (-0.13, 0.05, 0.50), (0.12, 0.10, 0.10), M['vest'], 0.014), jkL)
+    parent_keep(mesh_cube(f'{name}_KneeR', (0.13, 0.05, 0.50), (0.12, 0.10, 0.10), M['vest'], 0.014), jkR)
+    parent_keep(mesh_cube(f'{name}_ElbowL', (-0.36, 0.10, 1.14), (0.09, 0.08, 0.08), M['vest'], 0.01), jshL)
+    parent_keep(mesh_cube(f'{name}_ElbowR', (0.22, -0.12, 1.20), (0.09, 0.08, 0.08), M['vest'], 0.01), jshR)
     # vest + pouches (front = -Y)
     parent(mesh_cube(f'{name}_Vest', (0, -0.015, 1.28), (0.42, 0.16, 0.30), M['vest'], 0.018), root)
     parent(mesh_cube(f'{name}_Strap', (0, 0.0, 1.42), (0.36, 0.22, 0.04), M['strap'], 0.008), root)
+    parent(mesh_cube(f'{name}_Strap2', (0, 0.0, 1.18), (0.40, 0.20, 0.035), M['strap'], 0.006), root)
+    parent(mesh_cube(f'{name}_Zip', (0.0, -0.125, 1.24), (0.03, 0.02, 0.34), M['metal'], 0.002), root)
+    parent(mesh_cube(f'{name}_PocketL', (-0.16, -0.13, 1.08), (0.12, 0.05, 0.12), M['jacket'], 0.012), root)
+    parent(mesh_cube(f'{name}_PocketR', (0.16, -0.13, 1.08), (0.12, 0.05, 0.12), M['jacket'], 0.012), root)
+    for i, py in enumerate((-0.04, 0.05)):
+        parent(mesh_cube(f'{name}_Molle{i}', (0, py - 0.12, 1.30), (0.34, 0.012, 0.012), M['strap'], 0.001), root)
+    parent(mesh_cube(f'{name}_SidePouchL', (-0.24, -0.02, 1.18), (0.08, 0.08, 0.12), M['pouch'], 0.01), root)
+    parent(mesh_cube(f'{name}_SidePouchR', (0.24, -0.02, 1.18), (0.08, 0.08, 0.12), M['pouch'], 0.01), root)
     for i, px in enumerate((-0.13, 0.0, 0.13)):
         parent(mesh_cube(f'{name}_Pouch{i}', (px, -0.12, 1.26), (0.10, 0.07, 0.11), M['pouch'], 0.01), root)
+        parent(mesh_cube(f'{name}_Flap{i}', (px, -0.145, 1.31), (0.10, 0.04, 0.03), M['pouch'], 0.006), root)
     parent(mesh_cube(f'{name}_PouchLowL', (-0.08, -0.12, 1.14), (0.10, 0.06, 0.08), M['pouch'], 0.01), root)
     parent(mesh_cube(f'{name}_PouchLowR', (0.08, -0.12, 1.14), (0.10, 0.06, 0.08), M['pouch'], 0.01), root)
     if cfg.get('extra_nades'):
@@ -588,11 +715,22 @@ def build_crate(T):
 
 
 def build_sandbag(T):
-    canvas = principled('BagCanvas', (0.78, 0.70, 0.48), 0.92, 0.03, T['canvas'])
+    canvas = principled('BagCanvas', (0.58, 0.52, 0.36), 0.92, 0.03, T['canvas'])
     root = new_empty('Prop_Sandbag')
     bag = mesh_cube('BagBody', (0, 0, 0.14), (0.72, 0.40, 0.28), canvas, 0.06)
     parent(bag, root)
     parent(mesh_cube('BagTie', (0, 0, 0.29), (0.10, 0.08, 0.06), canvas, 0.015), root)
+    return root
+
+
+def build_pallet(T):
+    wood = principled('PalletWood', (0.46, 0.34, 0.18), 0.8, 0.04, T['wood'])
+    root = new_empty('Prop_Pallet')
+    parent(mesh_cube('PalletDeck', (0, 0, 0.08), (1.16, 0.92, 0.06), wood, 0.008), root)
+    for i, x in enumerate((-0.46, 0.0, 0.46)):
+        parent(mesh_cube(f'PalletBeam{i}', (x, 0, 0.035), (0.10, 0.92, 0.07), wood, 0.006), root)
+    for i, z in enumerate((-0.38, 0.0, 0.38)):
+        parent(mesh_cube(f'PalletSlat{i}', (0, z, 0.12), (1.16, 0.12, 0.03), wood, 0.004), root)
     return root
 
 
@@ -648,33 +786,33 @@ def export_glb(path, roots):
 
 CHAR_CFGS = {
     'Char_Rusher': dict(
-        jacket=(0.82, 0.71, 0.42), pants=(0.25, 0.36, 0.55), vest=(0.58, 0.52, 0.32),
-        knit=(0.48, 0.44, 0.40), skin=(0.78, 0.62, 0.40), boots=(0.34, 0.22, 0.14),
-        pouch=(0.46, 0.40, 0.24), beanie_col=(0.40, 0.30, 0.22), jeans=True, beanie=True,
+        jacket=(0.52, 0.46, 0.32), pants=(0.25, 0.36, 0.55), vest=(0.58, 0.52, 0.32),
+        knit=(0.11, 0.10, 0.10), skin=(0.82, 0.64, 0.43), boots=(0.34, 0.22, 0.14),
+        pouch=(0.46, 0.40, 0.24), beanie_col=(0.22, 0.16, 0.12), jeans=True, beanie=True,
         weapon='knife'),
     'Char_Rifle': dict(
-        jacket=(0.84, 0.74, 0.45), pants=(0.46, 0.38, 0.24), vest=(0.54, 0.50, 0.32),
-        knit=(0.48, 0.44, 0.40), skin=(0.76, 0.62, 0.42), boots=(0.28, 0.20, 0.13),
-        pouch=(0.42, 0.39, 0.26), helm=(0.52, 0.56, 0.34), jeans=False, helmet=True,
+        jacket=(0.46, 0.44, 0.33), pants=(0.46, 0.38, 0.24), vest=(0.54, 0.50, 0.32),
+        knit=(0.11, 0.10, 0.10), skin=(0.80, 0.63, 0.43), boots=(0.28, 0.20, 0.13),
+        pouch=(0.42, 0.39, 0.26), helm=(0.30, 0.32, 0.20), jeans=False, helmet=True,
         weapon='rifle'),
     'Char_Shotgun': dict(
-        jacket=(0.64, 0.52, 0.30), pants=(0.27, 0.38, 0.55), vest=(0.46, 0.42, 0.27),
-        knit=(0.46, 0.42, 0.38), skin=(0.75, 0.62, 0.41), boots=(0.24, 0.16, 0.10),
-        pouch=(0.35, 0.32, 0.20), helm=(0.40, 0.38, 0.26), jeans=True, helmet=True,
+        jacket=(0.40, 0.35, 0.24), pants=(0.27, 0.38, 0.55), vest=(0.46, 0.42, 0.27),
+        knit=(0.10, 0.09, 0.09), skin=(0.80, 0.63, 0.42), boots=(0.24, 0.16, 0.10),
+        pouch=(0.35, 0.32, 0.20), helm=(0.26, 0.24, 0.16), jeans=True, helmet=True,
         weapon='shotgun'),
     'Char_Grenadier': dict(
-        jacket=(0.86, 0.64, 0.34), pants=(0.52, 0.40, 0.24), vest=(0.66, 0.52, 0.30),
-        knit=(0.50, 0.38, 0.28), skin=(0.78, 0.63, 0.42), boots=(0.34, 0.22, 0.12),
-        pouch=(0.52, 0.36, 0.18), beanie_col=(0.52, 0.32, 0.16), jeans=False, beanie=True,
+        jacket=(0.56, 0.45, 0.28), pants=(0.52, 0.40, 0.24), vest=(0.66, 0.52, 0.30),
+        knit=(0.12, 0.10, 0.09), skin=(0.82, 0.64, 0.44), boots=(0.34, 0.22, 0.12),
+        pouch=(0.52, 0.36, 0.18), beanie_col=(0.28, 0.18, 0.12), jeans=False, beanie=True,
         extra_nades=True, weapon='grenade'),
     'Char_Midboss': dict(
-        jacket=(0.70, 0.64, 0.50), pants=(0.40, 0.38, 0.34), vest=(0.52, 0.54, 0.56),
-        knit=(0.48, 0.44, 0.40), skin=(0.74, 0.62, 0.42), boots=(0.22, 0.18, 0.15),
-        pouch=(0.40, 0.42, 0.44), helm=(0.68, 0.70, 0.72), jeans=False, helmet=True,
+        jacket=(0.58, 0.54, 0.42), pants=(0.40, 0.38, 0.34), vest=(0.52, 0.54, 0.56),
+        knit=(0.11, 0.10, 0.10), skin=(0.78, 0.62, 0.42), boots=(0.22, 0.18, 0.15),
+        pouch=(0.40, 0.42, 0.44), helm=(0.40, 0.42, 0.44), jeans=False, helmet=True,
         iron_mask=True, coat=True, weapon='rifle'),
     'Char_Finalboss': dict(
-        jacket=(0.80, 0.66, 0.38), pants=(0.46, 0.36, 0.24), vest=(0.38, 0.42, 0.44),
-        knit=(0.46, 0.40, 0.34), skin=(0.76, 0.62, 0.40), boots=(0.22, 0.16, 0.12),
+        jacket=(0.50, 0.44, 0.30), pants=(0.46, 0.36, 0.24), vest=(0.38, 0.42, 0.44),
+        knit=(0.10, 0.09, 0.08), skin=(0.80, 0.62, 0.42), boots=(0.22, 0.16, 0.12),
         pouch=(0.52, 0.40, 0.20), jeans=False, visor_glow=True, armor=True, weapon='rifle'),
 }
 
@@ -695,7 +833,7 @@ def main():
     print('Building characters...')
     chars = [build_character(name, T, cfg) for name, cfg in CHAR_CFGS.items()]
     print('Building props...')
-    props = [build_crate(T), build_sandbag(T)]
+    props = [build_crate(T), build_sandbag(T), build_pallet(T)]
 
     export_glb(os.path.join(MODELS, 'viewmodels.glb'), guns)
     export_glb(os.path.join(MODELS, 'characters.glb'), chars)

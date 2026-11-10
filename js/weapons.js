@@ -70,10 +70,19 @@ export class Loadout {
     this.flash = 0;
     this.muzzleLight = new THREE.PointLight(0xffc070, 0, 4, 2);
     this.view.add(this.muzzleLight);
-    const flashMat = new THREE.MeshBasicMaterial({ color: 0xffe0a0, transparent: true, opacity: 0, depthWrite: false });
-    this.flashMesh = new THREE.Mesh(new THREE.ConeGeometry(0.03, 0.08, 8), flashMat);
+    const flashMat = new THREE.MeshBasicMaterial({
+      color: 0xffe8b0, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending
+    });
+    this.flashGroup = new THREE.Group();
+    this.flashMesh = new THREE.Mesh(new THREE.ConeGeometry(0.052, 0.14, 10), flashMat);
     this.flashMesh.rotation.x = -Math.PI / 2;
-    this.view.add(this.flashMesh);
+    this.flashGroup.add(this.flashMesh);
+    const flare = new THREE.Mesh(new THREE.PlaneGeometry(0.13, 0.13), flashMat.clone());
+    this.flashGroup.add(flare);
+    const flare2 = flare.clone();
+    flare2.rotation.y = Math.PI / 2;
+    this.flashGroup.add(flare2);
+    this.view.add(this.flashGroup);
     this.hip = new THREE.Vector3(0.16, -0.145, -0.30);
     this.aim = new THREE.Vector3(0.0, -0.06, -0.26);
     this.grenades = 0;
@@ -129,7 +138,7 @@ export class Loadout {
     this.recoilP += d.kick;
     this.recoilY += (Math.random() - 0.5) * d.kick * 0.45;
     this.spreadExtra = Math.min(0.045, this.spreadExtra + d.recoil);
-    this.flash = 0.045;
+    this.flash = 0.055;
     return 'shot';
   }
 
@@ -146,7 +155,7 @@ export class Loadout {
     const showingNade = this.nadeFlash > 0 && this.nadeModel;
     for (const k of Object.keys(this.models)) this.models[k].visible = (!showingNade && k === this.current);
     if (this.nadeModel) this.nadeModel.visible = !!showingNade;
-    this.flashMesh.visible = this.flash > 0;
+    this.flashGroup.visible = this.flash > 0;
     if (this.cooldown > 0) this.cooldown -= dt;
     if (this.reloading > 0) {
       this.reloading -= dt;
@@ -169,7 +178,7 @@ export class Loadout {
     this.root.quaternion.copy(this.camera.quaternion);
     this.flash = Math.max(0, this.flash - dt);
     model.traverse((o) => {
-      if (/Stock|Pad$|RiflePad|RifleStock|SMGStock|SMGPad|SGStock|SGPad/i.test(o.name)) {
+      if (/Stock|Pad$|RiflePad|RifleStock|SMGStock|SMGPad|SGStock|SGPad|FPArm|FPSleeve|FPHand|FPPalm|FPFinger|FPThumb/i.test(o.name)) {
         o.visible = this.ads < 0.55;
       }
     });
@@ -177,9 +186,10 @@ export class Loadout {
     const mz = model.localToWorld(mzLocal.clone());
     this.view.worldToLocal(mz);
     this.muzzleLight.position.copy(mz);
-    this.muzzleLight.intensity = this.flash > 0 ? 6 : 0;
-    this.flashMesh.position.set(mz.x, mz.y, mz.z - 0.02);
-    this.flashMesh.material.opacity = this.flash > 0 ? 0.9 : 0;
+    this.muzzleLight.intensity = this.flash > 0 ? 11 : 0;
+    this.flashGroup.position.set(mz.x, mz.y, mz.z - 0.02);
+    const op = this.flash > 0 ? Math.min(1, this.flash * 20) : 0;
+    this.flashGroup.traverse((o) => { if (o.material) o.material.opacity = op; });
   }
 
   refill() {

@@ -67,6 +67,7 @@ export class World {
     this._stall();
     this._tower();
     this._props();
+    this._dress();
     this._hills();
     this._dust();
     this._spawns();
@@ -85,7 +86,7 @@ export class World {
       sandMetal: makeMaterial(t.metalSand, { repeatX: 1.6, repeatY: 1, metalness: 0.6, roughness: 0.42 }),
       wood: makeMaterial(t.wood, { repeatX: 1.2, repeatY: 1.2, roughness: 0.8 }),
       tarp: makeMaterial(t.tarp, { repeatX: 2, repeatY: 2, roughness: 0.9 }),
-      bag: makeMaterial(t.sand, { repeatX: 1.6, repeatY: 1.6, color: 0xd8c896, roughness: 0.94 }),
+      bag: makeMaterial(t.sand, { repeatX: 1.6, repeatY: 1.6, color: 0xb8a070, roughness: 0.94 }),
       wet: makeMaterial(t.asphalt, { repeatX: 3, repeatY: 3, metalness: 0.22, roughness: 0.28, envMapIntensity: 1.4 }),
       dark: new THREE.MeshStandardMaterial({ color: 0x16120e, roughness: 0.9, metalness: 0.05 })
     };
@@ -93,7 +94,7 @@ export class World {
 
   _lights(renderer) {
     this.sunDir = new THREE.Vector3(-0.82, 0.42, 0.28).normalize();
-    const sun = new THREE.DirectionalLight(0xffd8b0, 2.45);
+    const sun = new THREE.DirectionalLight(0xffd8b0, 2.6);
     sun.position.copy(this.sunDir.clone().multiplyScalar(55));
     sun.castShadow = this.quality !== 'low';
     if (sun.castShadow) {
@@ -107,17 +108,20 @@ export class World {
     }
     this.scene.add(sun);
     this.sun = sun;
-    this.scene.add(new THREE.HemisphereLight(0xe8eef4, 0x6a5840, 0.95));
-    this.scene.add(new THREE.AmbientLight(0x4a4034, 0.34));
-    const fill = new THREE.DirectionalLight(0xc0d4e8, 0.72);
+    this.scene.add(new THREE.HemisphereLight(0xe8eef4, 0x6a5840, 1.08));
+    this.scene.add(new THREE.AmbientLight(0x4a4034, 0.42));
+    const fill = new THREE.DirectionalLight(0xc0d4e8, 0.9);
     fill.position.set(30, 22, -12);
     this.scene.add(fill);
     const bay = new THREE.PointLight(0xff9a4a, 2.1, 22, 1.6);
     bay.position.set(0, 4.2, -16);
     this.scene.add(bay);
-    const eaves = new THREE.PointLight(0xffc07a, 0.8, 14, 2);
+    const eaves = new THREE.PointLight(0xffc07a, 0.95, 14, 2);
     eaves.position.set(-12, 3.6, 2);
     this.scene.add(eaves);
+    const bounce = new THREE.DirectionalLight(0xffc090, 0.4);
+    bounce.position.set(6, 3.2, 18);
+    this.scene.add(bounce);
 
     const envScene = new THREE.Scene();
     envScene.add(new THREE.HemisphereLight(0xffd2a8, 0x4a3018, 1.4));
@@ -372,6 +376,71 @@ export class World {
     this.cyl(this.mats.rust, -12.6, 1.6, 16.8, 0.08, 3.2, false);
     this.cyl(this.mats.rust, 10.8, 1.6, 18.4, 0.08, 3.2, false);
     this.box(this.mats.tarp, 10.8, 3.25, 17.6, 0.05, 1.4, 2.2, false);
+  }
+
+  _dress() {
+    this.box(this.mats.sandMetal, -10.4, 3.2, -11.88, 0.38, 6.4, 0.38, false);
+    this.box(this.mats.sandMetal, 10.4, 3.2, -11.88, 0.38, 6.4, 0.38, false);
+    for (let i = 0; i < 4; i++) {
+      this.box(this.mats.plaster, -10.4, 1.15 + i * 1.25, -11.86, 8.1, 0.07, 0.07, false);
+      this.box(this.mats.plaster, 10.4, 1.15 + i * 1.25, -11.86, 8.1, 0.07, 0.07, false);
+    }
+    this.cyl(this.mats.rust, -14.15, 3.5, -12.05, 0.09, 7.0, false);
+    this.cyl(this.mats.rust, 14.15, 3.5, -12.05, 0.09, 7.0, false);
+    this.box(this.mats.rust, 0, 1.18, -20.22, 28.4, 0.1, 0.16, false);
+    this.box(this.mats.wood, 0, 0.2, -20.22, 28.4, 0.32, 0.22, false);
+    this.box(this.mats.rust, -14.22, 2.6, -16.4, 0.12, 0.12, 8.4, false);
+    this.cyl(this.mats.rust, -13.85, 5.4, -16.4, 0.09, 8.2, false);
+    this.box(this.mats.brick, -13.72, 0.18, 1.2, 0.26, 0.36, 18.4, false);
+    this.box(this.mats.rust, -13.88, 5.5, 1.2, 0.1, 0.1, 18, false);
+    this.box(this.mats.sandMetal, 13.25, 0.22, -5.6, 0.18, 0.44, 14, false);
+    this.box(this.mats.rust, 13.15, 4.6, -5.6, 0.1, 0.1, 12, false);
+    this._stain(-7.4, 1.7, -20.22, 4.4, 2.5, 0);
+    this._stain(5.2, 2.1, -20.22, 3.6, 2.0, 0);
+    this._stain(-13.72, 1.9, 8.2, 2.4, 2.6, Math.PI / 2);
+    this._stain(-13.72, 2.4, -2.4, 2.0, 1.8, Math.PI / 2);
+    if (this.propLib.Prop_Pallet) {
+      for (const [x, z, r] of [[4.2, 7.4, 0.2], [-8.6, -6.2, 0.85], [7.6, -8.2, -0.3], [-4.8, 13.2, 0.12]]) {
+        const pal = this.propLib.Prop_Pallet.clone(true);
+        pal.position.set(x, 0, z);
+        pal.rotation.y = r;
+        pal.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+        this.scene.add(pal);
+      }
+    }
+    const extras = [[-10.6, 0.4, -14.8, 0.95], [4.6, 0.35, -14.2, 0.8], [1.8, 0.4, 8.8, 0.85]];
+    for (const [x, y, z, s] of extras) {
+      if (this.propLib.Prop_Crate) {
+        const c = this.propLib.Prop_Crate.clone(true);
+        c.position.set(x, 0, z);
+        c.scale.setScalar(s / 0.7);
+        c.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+        this.scene.add(c);
+        this.addAABB(x, y, z, s, s * 0.85, s);
+      } else {
+        this.box(this.mats.wood, x, y, z, s, s * 0.85, s);
+      }
+    }
+    for (const [x, z, s] of [[2.4, 6.2, 3.6], [-6.1, -2.1, 2.9], [8.1, 3.2, 2.4], [-1.2, 12.1, 3.1]]) {
+      const m = new THREE.Mesh(this.geo.plane, this.mats.sand);
+      m.rotation.x = -Math.PI / 2;
+      m.position.set(x, 0.012, z);
+      m.scale.set(s, s, 1);
+      m.receiveShadow = true;
+      this.scene.add(m);
+    }
+  }
+
+  _stain(x, y, z, w, h, rotY) {
+    const mat = this.mats.brick.clone();
+    mat.transparent = true;
+    mat.opacity = 0.22;
+    mat.depthWrite = false;
+    const m = new THREE.Mesh(this.geo.plane, mat);
+    m.position.set(x, y, z);
+    m.scale.set(w, h, 1);
+    m.rotation.y = rotY;
+    this.scene.add(m);
   }
 
   _decal(text, x, y, z) {

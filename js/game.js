@@ -49,16 +49,16 @@ export class Game {
     this.renderer.setClearColor(0xc49a62);
     this.scene = new THREE.Scene();
     this.gunScene = new THREE.Scene();
-    const gunKey = new THREE.DirectionalLight(0xffecd0, 2.1);
+    const gunKey = new THREE.DirectionalLight(0xffecd0, 2.45);
     gunKey.position.set(0.4, 0.95, 0.55);
     this.gunScene.add(gunKey);
-    const gunRim = new THREE.DirectionalLight(0xffd2a8, 0.42);
+    const gunRim = new THREE.DirectionalLight(0xffd2a8, 0.58);
     gunRim.position.set(-0.85, 0.25, -0.45);
     this.gunScene.add(gunRim);
-    const gunFill = new THREE.PointLight(0x9ab4d0, 0.55, 5);
+    const gunFill = new THREE.PointLight(0x9ab4d0, 0.7, 5);
     gunFill.position.set(-0.28, 0.12, 0.35);
     this.gunScene.add(gunFill);
-    this.gunScene.add(new THREE.AmbientLight(0x2c241c, 0.4));
+    this.gunScene.add(new THREE.AmbientLight(0x3a3228, 0.48));
     this.camera = new THREE.PerspectiveCamera(72, innerWidth / innerHeight, 0.05, 220);
     this.baseFov = 72;
     this.titleT = 0;
@@ -383,6 +383,14 @@ export class Game {
     this.stats.score += hs.score;
     this.stats.kills += hs.killed.length;
     if (hs.hits) { this.hud.hitmarker(); this.audio.hit(); }
+    const right = new THREE.Vector3(1, 0, 0).applyQuaternion(this.camera.quaternion);
+    const up = new THREE.Vector3(0, 1, 0).applyQuaternion(this.camera.quaternion);
+    const fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(this.camera.quaternion);
+    const casing = this.camera.position.clone()
+      .addScaledVector(right, 0.11)
+      .addScaledVector(up, -0.05)
+      .addScaledVector(fwd, 0.22);
+    this.combat.ejectCasing(casing, right, up);
   }
 
   loop = () => {

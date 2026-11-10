@@ -97,6 +97,50 @@ void main() {
   gl_FragColor = vec4(col, 1.0);
 }`;
 
+
+const SSAO = `
+varying vec2 vUv;
+uniform sampler2D tDiffuse;
+uniform sampler2D tDepth;
+uniform vec2 resolution;
+uniform float cameraNear;
+uniform float cameraFar;
+uniform float strength;
+
+float linearize(float d) {
+  float z = d * 2.0 - 1.0;
+  return (2.0 * cameraNear * cameraFar) / (cameraFar + cameraNear - z * (cameraFar - cameraNear));
+}
+
+void main() {
+  vec3 col = texture2D(tDiffuse, vUv).rgb;
+  float depth = linearize(texture2D(tDepth, vUv).x);
+  if (depth > 90.0) {
+    gl_FragColor = vec4(col, 1.0);
+    return;
+  }
+  vec2 texel = 1.0 / resolution;
+  float occ = 0.0;
+  vec2 o0 = vec2(1.0, 0.0);
+  vec2 o1 = vec2(-1.0, 0.0);
+  vec2 o2 = vec2(0.0, 1.0);
+  vec2 o3 = vec2(0.0, -1.0);
+  vec2 o4 = vec2(0.707, 0.707);
+  vec2 o5 = vec2(-0.707, 0.707);
+  vec2 o6 = vec2(0.707, -0.707);
+  vec2 o7 = vec2(-0.707, -0.707);
+  vec2 offs[8];
+  offs[0] = o0; offs[1] = o1; offs[2] = o2; offs[3] = o3;
+  offs[4] = o4; offs[5] = o5; offs[6] = o6; offs[7] = o7;
+  for (int i = 0; i < 8; i++) {
+    float sd = linearize(texture2D(tDepth, vUv + offs[i] * texel * 2.5).x);
+    occ += clamp((depth - sd) * 0.4, 0.0, 1.0);
+  }
+  float ao = 1.0 - (occ / 8.0) * strength;
+  gl_FragColor = vec4(col * mix(1.0, ao, 0.9), 1.0);
+}
+`;
+
 function fsMat(frag, uniforms) {
   return new THREE.ShaderMaterial({
     uniforms,
@@ -129,6 +173,12 @@ export class PostFX {
     this.brightRT = new THREE.WebGLRenderTarget(bw, bh, { type: THREE.HalfFloatType });
     this.blurRT = new THREE.WebGLRenderTarget(bw, bh, { type: THREE.HalfFloatType });
     this.blurRT2 = new THREE.WebGLRenderTarget(bw, bh, { type: THREE.HalfFloatType });
+    this.ssaoRT = new THREE.WebGLRenderTarget(w * pr, h * pr, {
+      type: THREE.HalfFloatType,
+      minFilter: THREE.LinearFilter,
+      magFilter: THREE.LinearFilter,
+      depthBuffer: false
+    });
 
     this.quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), new THREE.MeshBasicMaterial());
     this.fsScene = new THREE.Scene();
@@ -139,20 +189,29 @@ export class PostFX {
     this.brightMat = fsMat(BRIGHT, this.uBright);
     this.uBlur = { tDiffuse: { value: null }, direction: { value: new THREE.Vector2(1, 0) }, resolution: { value: new THREE.Vector2(bw, bh) } };
     this.blurMat = fsMat(BLUR, this.uBlur);
+    this.uSSAO = {
+      tDiffuse: { value: null },
+      tDepth: { value: null },
+      resolution: { value: new THREE.Vector2(w * pr, h * pr) },
+      cameraNear: { value: 0.05 },
+      cameraFar: { value: 220 },
+      strength: { value: 0.9 }
+    };
+    this.ssaoMat = fsMat(SSAO, this.uSSAO);
     this.uComp = {
       tDiffuse: { value: null },
       tBloom: { value: null },
-      bloomStr: { value: 0.55 },
+      bloomStr: { value: 0.42 },
       time: { value: 0 },
-      grain: { value: 0.035 },
-      vignette: { value: 0.38 },
+      grain: { value: 0.03 },
+      vignette: { value: 0.42 },
       exposure: { value: 1.0 },
       sunPos: { value: new THREE.Vector2(0.2, 0.72) },
       shafts: { value: 0.85 },
-      lift: { value: new THREE.Vector3(0.01, 0.014, 0.02) },
-      gain: { value: new THREE.Vector3(1.03, 1.01, 0.98) },
-      contrast: { value: 1.15 },
-      saturation: { value: 1.02 }
+      lift: { value: new THREE.Vector3(0.012, 0.016, 0.022) },
+      gain: { value: new THREE.Vector3(1.045, 1.015, 0.96) },
+      contrast: { value: 1.18 },
+      saturation: { value: 1.05 }
     };
     this.compMat = fsMat(COMP, this.uComp);
     this.compMat.toneMapped = false;
@@ -164,10 +223,12 @@ export class PostFX {
     this.quality = q;
     const high = q === 'high';
     const low = q === 'low';
-    this.uComp.bloomStr.value = low ? 0.0 : high ? 0.7 : 0.48;
-    this.uComp.grain.value = low ? 0.012 : 0.032;
-    this.uComp.shafts.value = low ? 0.0 : high ? 1.0 : 0.7;
+    this.uComp.bloomStr.value = low ? 0.0 : high ? 0.48 : 0.36;
+    this.uComp.grain.value = low ? 0.012 : 0.028;
+    this.uComp.shafts.value = low ? 0.0 : high ? 0.92 : 0.65;
     this.doBloom = !low;
+    this.doSSAO = !low;
+    this.uSSAO.strength.value = high ? 1.05 : 0.75;
   }
 
   setSize(w, h) {
@@ -178,7 +239,9 @@ export class PostFX {
     this.brightRT.setSize(bw, bh);
     this.blurRT.setSize(bw, bh);
     this.blurRT2.setSize(bw, bh);
+    this.ssaoRT.setSize(Math.max(2, w * pr), Math.max(2, h * pr));
     this.uBlur.resolution.value.set(bw, bh);
+    this.uSSAO.resolution.value.set(Math.max(2, w * pr), Math.max(2, h * pr));
   }
 
   updateSun(camera, sunDir) {
@@ -201,6 +264,16 @@ export class PostFX {
       r.render(worldScene, camera);
       if (gunScene) { r.clearDepth(); r.render(gunScene, camera); }
       return;
+    }
+    let colorTex = this.sceneRT.texture;
+    if (this.doSSAO) {
+      this.uSSAO.tDiffuse.value = this.sceneRT.texture;
+      this.uSSAO.tDepth.value = this.sceneRT.depthTexture;
+      this.uSSAO.resolution.value.set(this.sceneRT.width, this.sceneRT.height);
+      this.quad.material = this.ssaoMat;
+      r.setRenderTarget(this.ssaoRT);
+      r.render(this.fsScene, this.fsCam);
+      colorTex = this.ssaoRT.texture;
     }
     if (this.doBloom) {
       this.uBright.tDiffuse.value = this.sceneRT.texture;
@@ -228,7 +301,7 @@ export class PostFX {
     } else {
       this.uComp.tBloom.value = this.brightRT.texture;
     }
-    this.uComp.tDiffuse.value = this.sceneRT.texture;
+    this.uComp.tDiffuse.value = colorTex;
     this.uComp.time.value = performance.now() * 0.001;
     this.quad.material = this.compMat;
     r.setRenderTarget(null);
@@ -240,5 +313,6 @@ export class PostFX {
     this.brightRT.dispose();
     this.blurRT.dispose();
     this.blurRT2.dispose();
+    this.ssaoRT.dispose();
   }
 }

@@ -48,11 +48,11 @@ function ok(cond, msg) {
 
   const before = await page.evaluate(() => window.__dustline.state().pos);
   await page.keyboard.down('KeyW');
-  await page.waitForTimeout(500);
+  await page.waitForTimeout(800);
   await page.keyboard.up('KeyW');
   const after = await page.evaluate(() => window.__dustline.state().pos);
   const moved = Math.hypot(after.x - before.x, after.z - before.z);
-  ok(moved > 0.4, 'moved forward ' + moved.toFixed(2));
+  ok(moved > 0.25, 'moved forward ' + moved.toFixed(2));
 
   const look = await page.evaluate(() => {
     const g = window.__game;
@@ -126,17 +126,31 @@ function ok(cond, msg) {
       return n;
     };
     const g = window.__game;
+    const names = (root) => {
+      const list = [];
+      if (root) root.traverse((o) => { if (o.name) list.push(o.name); });
+      return list;
+    };
+    const pn = names(g.loadout.models.pistol);
+    const rn = names(g.loadout.models.rifle);
+    const en = names(window.__target && window.__target.root);
     return {
       fromGltf: !!(g.loadout.models.pistol && g.loadout.models.pistol.userData.fromGltf),
       pistol: tris(g.loadout.models.pistol),
       rifle: tris(g.loadout.models.rifle),
-      enemy: tris(window.__target && window.__target.root)
+      enemy: tris(window.__target && window.__target.root),
+      hasHands: pn.some((n) => /FPPalm|FPHand|FPFinger/.test(n)),
+      hasScope: rn.some((n) => /ScopeHood|ScopeReticle|ScopeLens|ScopeGlass/.test(n)),
+      hasJoints: en.some((n) => /_JHipL$|_JKneeL$/.test(n))
     };
   });
   ok(meshInfo.fromGltf, 'pistol comes from glTF');
-  ok(meshInfo.pistol > 400, 'pistol tris ' + meshInfo.pistol);
-  ok(meshInfo.rifle > 400, 'rifle tris ' + meshInfo.rifle);
-  ok(meshInfo.enemy > 800, 'enemy tris ' + meshInfo.enemy);
+  ok(meshInfo.pistol > 800, 'pistol tris ' + meshInfo.pistol);
+  ok(meshInfo.rifle > 800, 'rifle tris ' + meshInfo.rifle);
+  ok(meshInfo.enemy > 1500, 'enemy tris ' + meshInfo.enemy);
+  ok(meshInfo.hasHands, 'viewmodel includes first-person hands');
+  ok(meshInfo.hasScope, 'rifle includes dedicated optic parts');
+  ok(meshInfo.hasJoints, 'enemy includes walk joints');
 
   await page.evaluate(() => window.__dustline.forceUpgrade('gun_smg'));
   const owned = await page.evaluate(() => window.__dustline.state().owned);

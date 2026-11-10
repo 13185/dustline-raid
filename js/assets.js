@@ -104,7 +104,7 @@ export async function loadGameModels(onProgress) {
 
   const props = {};
   if (propG) {
-    for (const name of ['Prop_Crate', 'Prop_Sandbag']) {
+    for (const name of ['Prop_Crate', 'Prop_Sandbag', 'Prop_Pallet']) {
       const obj = propG.scene.getObjectByName(name);
       if (obj) {
         obj.removeFromParent();
@@ -137,6 +137,19 @@ export function instantiateCharacter(type, catalog) {
   });
   root.userData.bodyMats = bodyMats;
   root.userData.fromGltf = true;
+  const findJoint = (suffix) => {
+    let f = null;
+    root.traverse((o) => { if (!f && o.name && o.name.endsWith(suffix)) f = o; });
+    return f;
+  };
+  root.userData.joints = {
+    hipL: findJoint('_JHipL'),
+    hipR: findJoint('_JHipR'),
+    kneeL: findJoint('_JKneeL'),
+    kneeR: findJoint('_JKneeR'),
+    shL: findJoint('_JShL'),
+    shR: findJoint('_JShR')
+  };
   return root;
 }
 
