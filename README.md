@@ -60,4 +60,12 @@ python3 -m http.server 4188
 
 ## 技术
 
-Three.js r170 + WebGL2，程序化 PBR 贴图，自定义后期（bloom、尘雾光柱、胶片颗粒、ACES 调色）。
+Three.js r170 + WebGL2。第一人称枪械、敌军角色和部分道具在 Blender 中建模并导出为 glTF；地面与建筑仍用程序化 PBR 贴图。自定义后期（bloom、尘雾光柱、胶片颗粒、ACES 调色）。
+
+## 模型
+
+`art/build_assets.py` 用 Blender 4.2 后台脚本生成 `models/*.glb`。重新导出：
+
+```bash
+blender --background --python art/build_assets.py
+```

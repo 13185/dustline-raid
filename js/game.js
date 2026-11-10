@@ -10,6 +10,7 @@ import { Combat } from './enemies.js';
 import { Player } from './player.js';
 import { WaveDirector, WAVES } from './waves.js';
 import { HUD } from './hud.js';
+import { loadGameModels } from './assets.js';
 
 function $(id) { return document.getElementById(id); }
 
@@ -73,13 +74,15 @@ export class Game {
   async boot(onProgress) {
     onProgress(0.05, '扬起沙尘');
     const texSize = this.quality === 'low' ? 256 : this.quality === 'high' ? 512 : 384;
-    this.textures = await generateTextures(texSize, (p, name) => onProgress(0.08 + p * 0.7, '绘制地表 · ' + name));
-    onProgress(0.82, '搭建货栈');
-    this.world = new World(this.scene, this.renderer, this.textures, this.quality);
+    this.textures = await generateTextures(texSize, (p, name) => onProgress(0.08 + p * 0.52, '绘制地表 · ' + name));
+    onProgress(0.62, '装箱械与敌军');
+    this.assets = await loadGameModels((p, msg) => onProgress(0.62 + p * 0.2, msg));
+    onProgress(0.84, '搭建货栈');
+    this.world = new World(this.scene, this.renderer, this.textures, this.quality, this.assets.props);
     this.gunScene.environment = this.scene.environment;
     this.player = new Player(this.camera, this.world, this.input);
-    this.loadout = new Loadout(this.gunScene, this.camera);
-    this.combat = new Combat(this.scene, this.world, this.audio);
+    this.loadout = new Loadout(this.gunScene, this.camera, this.assets.viewmodels);
+    this.combat = new Combat(this.scene, this.world, this.audio, this.assets.characters);
     this.waves = new WaveDirector(this.combat, this.world);
     this.fx = new PostFX(this.renderer, { quality: this.quality });
     onProgress(0.95, '校正准星');
@@ -272,6 +275,7 @@ export class Game {
   _throwNade() {
     if (this.loadout.grenades <= 0 || this.mode !== 'play') return;
     this.loadout.grenades -= 1;
+    this.loadout.flashGrenade();
     const origin = this.camera.position.clone();
     const dir = new THREE.Vector3();
     this.camera.getWorldDirection(dir);
@@ -528,7 +532,8 @@ export class Game {
         adsHeld: self.input.adsHeld,
         ads: self.loadout.ads,
         fov: self.camera.fov,
-        awaitingLock: self.awaitingLock
+        awaitingLock: self.awaitingLock,
+        fromGltf: !!(self.loadout.models.pistol && self.loadout.models.pistol.userData.fromGltf)
       }),
       start: () => self.startRun(),
       spawnEnemy: (type, x, z) => self.combat.spawn(type || 'rusher', x ?? 0, z ?? 6),

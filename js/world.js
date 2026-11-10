@@ -31,10 +31,11 @@ void main() {
 }`;
 
 export class World {
-  constructor(scene, renderer, textures, quality) {
+  constructor(scene, renderer, textures, quality, propLib = null) {
     this.scene = scene;
     this.textures = textures;
     this.quality = quality;
+    this.propLib = propLib || {};
     this.colliders = [];
     this.spawns = [];
     this.geo = {
@@ -252,6 +253,18 @@ export class World {
     const g = new THREE.Group();
     g.position.set(x, 0, z);
     g.rotation.y = rot;
+    if (this.propLib.Prop_Sandbag) {
+      for (let i = 0; i < 5; i++) {
+        const bag = this.propLib.Prop_Sandbag.clone(true);
+        bag.position.set((i % 3) * 0.62 - 0.62, Math.floor(i / 3) * 0.28, (i % 2) * 0.08);
+        bag.rotation.y = (i - 2) * 0.08;
+        bag.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+        g.add(bag);
+      }
+      this.scene.add(g);
+      this.addAABB(x, 0.32, z, 2.1, 0.64, 1.1);
+      return;
+    }
     for (let i = 0; i < 5; i++) {
       const bag = new THREE.Mesh(this.geo.box, this.mats.bag);
       bag.scale.set(0.75, 0.28, 0.42);
@@ -317,7 +330,18 @@ export class World {
       [8.8, 0.45, -9.5, 1.05], [2.2, 0.4, -10.6, 0.9],
       [-2.4, 0.4, 14.5, 1.0], [3.1, 0.35, 15.2, 0.7]
     ];
-    for (const [x, y, z, s] of crates) this.box(this.mats.wood, x, y, z, s, s * 0.85, s);
+    for (const [x, y, z, s] of crates) {
+      if (this.propLib.Prop_Crate) {
+        const c = this.propLib.Prop_Crate.clone(true);
+        c.position.set(x, 0, z);
+        c.scale.setScalar(s / 0.7);
+        c.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+        this.scene.add(c);
+        this.addAABB(x, y, z, s, s * 0.85, s);
+      } else {
+        this.box(this.mats.wood, x, y, z, s, s * 0.85, s);
+      }
+    }
     const drums = [[9.4, 12.2], [10.1, 12.8], [-11.4, 7.2], [11.8, -10.6], [-6.2, -10.8]];
     for (const [x, z] of drums) this.cyl(this.mats.rust, x, 0.5, z, 0.32, 0.95);
     this.box(this.mats.rust, -13.5, 4.7, -8.2, 0.22, 0.22, 16, false);

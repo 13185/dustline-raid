@@ -13,3 +13,8 @@ All textures, meshes, weapons, characters, sound effects and the
 level “沙市货栈” are original works generated procedurally at runtime
 for this game. No Valve, Counter-Strike, Call of Duty, or other
 commercial game assets are used.
+
+First-person weapons, enemy characters and hero props were modeled
+in Blender 4.2 by Jack and exported as original glTF (.glb) files.
+No commercial asset packs and no Valve / Counter-Strike content
+are included.

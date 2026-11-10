@@ -113,6 +113,31 @@ function ok(cond, msg) {
   });
   ok(afterShot.shots > 0, 'fired shots=' + afterShot.shots);
   ok(afterShot.hp < hp0, `enemy damaged ${hp0} -> ${afterShot.hp}`);
+
+  const meshInfo = await page.evaluate(() => {
+    const tris = (root) => {
+      let n = 0;
+      if (!root) return 0;
+      root.traverse((o) => {
+        if (!o.isMesh || !o.geometry) return;
+        const g = o.geometry;
+        n += g.index ? g.index.count / 3 : (g.attributes.position ? g.attributes.position.count / 3 : 0);
+      });
+      return n;
+    };
+    const g = window.__game;
+    return {
+      fromGltf: !!(g.loadout.models.pistol && g.loadout.models.pistol.userData.fromGltf),
+      pistol: tris(g.loadout.models.pistol),
+      rifle: tris(g.loadout.models.rifle),
+      enemy: tris(window.__target && window.__target.root)
+    };
+  });
+  ok(meshInfo.fromGltf, 'pistol comes from glTF');
+  ok(meshInfo.pistol > 400, 'pistol tris ' + meshInfo.pistol);
+  ok(meshInfo.rifle > 400, 'rifle tris ' + meshInfo.rifle);
+  ok(meshInfo.enemy > 800, 'enemy tris ' + meshInfo.enemy);
+
   await page.evaluate(() => window.__dustline.forceUpgrade('gun_smg'));
   const owned = await page.evaluate(() => window.__dustline.state().owned);
   ok(owned.includes('smg'), 'unlocked smg: ' + owned.join(','));
