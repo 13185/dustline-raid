@@ -7,11 +7,13 @@ export class Input {
     this.fireHeld = false;
     this.adsHeld = false;
     this.locked = false;
-    this.sensitivity = 0.0022;
-    this.touchMove = { x: 0, y: 0 };
-    this.touchLook = { x: 0, y: 0 };
-    this.isTouch = matchMedia('(pointer: coarse)').matches || (navigator.maxTouchPoints || 0) > 0 || innerWidth <= 820;
+    this.sensitivity = 0.00215;
+    this.isTouch = false;
+    this.lockCalls = 0;
+    this.onLockChange = null;
     this._bind();
+    const touch = document.getElementById('touch');
+    if (touch) touch.classList.add('hidden');
   }
 
   _bind() {
@@ -20,40 +22,77 @@ export class Input {
       if (['Space', 'Tab'].includes(e.code)) e.preventDefault();
     });
     addEventListener('keyup', (e) => { this.keys[e.code] = false; });
-    this.canvas.addEventListener('mousedown', (e) => {
-      if (e.button === 0) this.fireHeld = true;
-      if (e.button === 2) this.adsHeld = true;
-    });
-    addEventListener('mouseup', (e) => {
+
+    const onDown = (e) => {
+      if (e.button === 0) {
+        if (!this.locked) {
+          this.requestLock();
+          return;
+        }
+        this.fireHeld = true;
+      }
+      if (e.button === 2) {
+        e.preventDefault();
+        if (this.locked) this.adsHeld = true;
+      }
+    };
+    const onUp = (e) => {
       if (e.button === 0) this.fireHeld = false;
       if (e.button === 2) this.adsHeld = false;
+    };
+    this.canvas.addEventListener('mousedown', onDown);
+    addEventListener('mousedown', (e) => {
+      if (e.button === 2 && this.locked) this.adsHeld = true;
     });
-    this.canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+    addEventListener('mouseup', onUp);
+    addEventListener('blur', () => {
+      this.fireHeld = false;
+      this.adsHeld = false;
+    });
+    const blockMenu = (e) => e.preventDefault();
+    this.canvas.addEventListener('contextmenu', blockMenu);
+    document.addEventListener('contextmenu', blockMenu);
+
     addEventListener('mousemove', (e) => {
-      if (this.locked) {
-        this.look.x += e.movementX;
-        this.look.y += e.movementY;
-      } else if (e.buttons === 1 && !this.isTouch) {
-        this.look.x += e.movementX;
-        this.look.y += e.movementY;
-      }
+      if (!this.locked) return;
+      this.look.x += e.movementX || 0;
+      this.look.y += e.movementY || 0;
     });
+
     document.addEventListener('pointerlockchange', () => {
-      this.locked = document.pointerLockElement === this.canvas;
+      const next = document.pointerLockElement === this.canvas;
+      this.locked = next;
+      if (!next) {
+        this.fireHeld = false;
+        this.adsHeld = false;
+      }
+      if (this.onLockChange) this.onLockChange(next);
     });
+
     addEventListener('wheel', (e) => {
-      if (this.onWheel) this.onWheel(Math.sign(e.deltaY));
-    }, { passive: true });
-    this._setupTouch();
+      if (this.locked && this.onWheel) {
+        e.preventDefault();
+        this.onWheel(Math.sign(e.deltaY));
+      } else if (this.onWheel) {
+        this.onWheel(Math.sign(e.deltaY));
+      }
+    }, { passive: false });
   }
 
   requestLock() {
-    if (this.isTouch) return;
-    this.canvas.requestPointerLock?.();
+    this.lockCalls += 1;
+    if (!this.canvas.requestPointerLock) return null;
+    try {
+      const p = this.canvas.requestPointerLock();
+      return p;
+    } catch (err) {
+      return null;
+    }
   }
 
   exitLock() {
     if (document.pointerLockElement) document.exitPointerLock();
+    this.locked = document.pointerLockElement === this.canvas;
   }
 
   consumeLook() {
@@ -68,86 +107,13 @@ export class Input {
     if (this.keys.KeyD || this.keys.ArrowRight) x += 1;
     if (this.keys.KeyW || this.keys.ArrowUp) z -= 1;
     if (this.keys.KeyS || this.keys.ArrowDown) z += 1;
-    x += this.touchMove.x;
-    z += this.touchMove.y;
     const m = Math.hypot(x, z);
     if (m > 1) { x /= m; z /= m; }
     return { x, z };
   }
 
-  _setupTouch() {
-    const stick = document.getElementById('stick');
-    const knob = document.getElementById('stickKnob');
-    const look = document.getElementById('lookZone');
+  showTouch() {
     const touch = document.getElementById('touch');
-    if (!stick || !look) return;
-    const setStick = (cx, cy, px, py) => {
-      const dx = px - cx, dy = py - cy;
-      const max = 46;
-      const m = Math.hypot(dx, dy) || 1;
-      const k = Math.min(m, max) / m;
-      const sx = dx * k, sy = dy * k;
-      knob.style.transform = `translate(${sx}px, ${sy}px)`;
-      this.touchMove.x = sx / max;
-      this.touchMove.y = sy / max;
-    };
-    let sid = null, lid = null, lx = 0, ly = 0;
-    stick.addEventListener('touchstart', (e) => {
-      const t = e.changedTouches[0];
-      sid = t.identifier;
-      const r = stick.getBoundingClientRect();
-      setStick(r.left + r.width / 2, r.top + r.height / 2, t.clientX, t.clientY);
-      e.preventDefault();
-    }, { passive: false });
-    look.addEventListener('touchstart', (e) => {
-      const t = e.changedTouches[0];
-      lid = t.identifier; lx = t.clientX; ly = t.clientY;
-      e.preventDefault();
-    }, { passive: false });
-    addEventListener('touchmove', (e) => {
-      for (const t of e.changedTouches) {
-        if (t.identifier === sid) {
-          const r = stick.getBoundingClientRect();
-          setStick(r.left + r.width / 2, r.top + r.height / 2, t.clientX, t.clientY);
-        } else if (t.identifier === lid) {
-          this.look.x += (t.clientX - lx) * 1.6;
-          this.look.y += (t.clientY - ly) * 1.6;
-          lx = t.clientX; ly = t.clientY;
-        }
-      }
-    }, { passive: false });
-    const end = (e) => {
-      for (const t of e.changedTouches) {
-        if (t.identifier === sid) {
-          sid = null; this.touchMove.x = 0; this.touchMove.y = 0;
-          knob.style.transform = '';
-        }
-        if (t.identifier === lid) lid = null;
-      }
-    };
-    addEventListener('touchend', end);
-    addEventListener('touchcancel', end);
-    document.querySelectorAll('#touch [data-act]').forEach((btn) => {
-      const act = btn.dataset.act;
-      const down = (e) => {
-        e.preventDefault();
-        if (act === 'fire') this.fireHeld = true;
-        if (act === 'ads') this.adsHeld = !this.adsHeld;
-        if (this.onTouchAct) this.onTouchAct(act, true);
-      };
-      const up = (e) => {
-        e.preventDefault();
-        if (act === 'fire') this.fireHeld = false;
-        if (this.onTouchAct) this.onTouchAct(act, false);
-      };
-      btn.addEventListener('touchstart', down, { passive: false });
-      btn.addEventListener('touchend', up, { passive: false });
-    });
-    this.touchRoot = touch;
-  }
-
-  showTouch(v) {
-    if (!this.touchRoot) return;
-    this.touchRoot.classList.toggle('hidden', !v);
+    if (touch) touch.classList.add('hidden');
   }
 }

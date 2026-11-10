@@ -27,63 +27,113 @@ function mesh(parent, geo, mat, x, y, z, sx, sy, sz) {
 function makeChar(type) {
   const g = new THREE.Group();
   const pal = {
-    rusher: { jacket: 0x4d542c, pants: 0x3a3428, vest: 0x2c2a22, head: 0x3a3028, helm: null, accent: 0x1a1a18 },
-    rifle: { jacket: 0x8a7548, pants: 0x4a4634, vest: 0x2e3228, head: 0x3a3028, helm: 0x3a4a30, accent: 0x222 },
-    shotgun: { jacket: 0x2a2e2a, pants: 0x242018, vest: 0x3a3428, head: 0x2e2822, helm: 0x1c1c1c, accent: 0x111 },
-    grenadier: { jacket: 0x6a4030, pants: 0x3a2c22, vest: 0x4a3020, head: 0x3a3028, helm: 0x4a3a28, accent: 0x8a4a20 },
-    midboss: { jacket: 0x2a2622, pants: 0x1c1a18, vest: 0x3a3c40, head: 0x2a2824, helm: 0x4a4c50, accent: 0x222 },
-    finalboss: { jacket: 0x6a5434, pants: 0x3a3224, vest: 0x2a2c2e, head: 0x2a2620, helm: 0x2c2e30, accent: 0xff7a30 }
+    rusher: {
+      jacket: 0xd2b56a, pants: 0x3f5d8c, vest: 0x9a8b58, knit: 0x4a4540,
+      skin: 0xc9a06a, helm: null, beanie: 0x6a5340, boots: 0x5a3c28, pouch: 0x7a6a40
+    },
+    rifle: {
+      jacket: 0xd8bc74, pants: 0x7a6540, vest: 0x8f8658, knit: 0x4c4842,
+      skin: 0xc4a070, helm: 0x8a9458, beanie: null, boots: 0x4a3424, pouch: 0x6e6844
+    },
+    shotgun: {
+      jacket: 0xa88852, pants: 0x45638c, vest: 0x7a7048, knit: 0x45423e,
+      skin: 0xc2a06c, helm: 0x6a6248, beanie: null, boots: 0x3e2c1e, pouch: 0x5c5438
+    },
+    grenadier: {
+      jacket: 0xdca45a, pants: 0x8a6c42, vest: 0xb08a50, knit: 0x5a4030,
+      skin: 0xc8a46e, helm: null, beanie: 0x8a5a30, boots: 0x5a3a22, pouch: 0x8a6230
+    },
+    midboss: {
+      jacket: 0xb8a888, pants: 0x6a6258, vest: 0x8a9098, knit: 0x4a4844,
+      skin: 0xc0a070, helm: 0xb0b4ba, beanie: null, boots: 0x3a322c, pouch: 0x6a7078
+    },
+    finalboss: {
+      jacket: 0xd2ae68, pants: 0x7a6244, vest: 0x6a727a, knit: 0x4a4038,
+      skin: 0xc4a06a, helm: 0x5a6268, beanie: null, boots: 0x3a2c20, pouch: 0x8a6a38
+    }
   }[type];
-  const jacket = new THREE.MeshStandardMaterial({ color: pal.jacket, roughness: 0.78, metalness: 0.08 });
-  const pants = new THREE.MeshStandardMaterial({ color: pal.pants, roughness: 0.82, metalness: 0.05 });
-  const vest = new THREE.MeshStandardMaterial({ color: pal.vest, roughness: 0.7, metalness: type.includes('boss') ? 0.55 : 0.15 });
-  const skin = new THREE.MeshStandardMaterial({ color: pal.head, roughness: 0.7 });
-  const dark = new THREE.MeshStandardMaterial({ color: pal.accent, roughness: 0.55, metalness: 0.2 });
-  const metal = new THREE.MeshStandardMaterial({ color: 0x2a2c2e, roughness: 0.35, metalness: 0.8 });
 
-  const torso = mesh(g, box, jacket, 0, 1.22, 0, 0.52, 0.62, 0.3);
-  mesh(g, box, vest, 0, 1.24, 0.04, 0.56, 0.42, 0.22);
-  mesh(g, box, pants, -0.14, 0.52, 0, 0.2, 0.7, 0.22);
-  mesh(g, box, pants, 0.14, 0.52, 0, 0.2, 0.7, 0.22);
-  mesh(g, box, dark, -0.14, 0.14, 0.04, 0.22, 0.12, 0.28);
-  mesh(g, box, dark, 0.14, 0.14, 0.04, 0.22, 0.12, 0.28);
-  const armL = mesh(g, box, jacket, -0.38, 1.18, 0, 0.16, 0.55, 0.16);
-  const armR = mesh(g, box, jacket, 0.38, 1.18, 0, 0.16, 0.55, 0.16);
-  const head = mesh(g, sph, skin, 0, 1.68, 0, 0.18, 0.2, 0.18);
-  mesh(head, box, dark, 0, 0.05, 0.85, 1.05, 0.7, 0.25);
-  mesh(head, box, dark, 0, -0.35, 0.2, 0.95, 0.45, 0.9);
+  const jacket = new THREE.MeshStandardMaterial({ color: pal.jacket, roughness: 0.72, metalness: 0.04, envMapIntensity: 0.55 });
+  const pants = new THREE.MeshStandardMaterial({ color: pal.pants, roughness: 0.78, metalness: 0.03, envMapIntensity: 0.4 });
+  const vest = new THREE.MeshStandardMaterial({ color: pal.vest, roughness: 0.62, metalness: type.includes('boss') ? 0.42 : 0.12, envMapIntensity: 0.65 });
+  const knit = new THREE.MeshStandardMaterial({ color: pal.knit, roughness: 0.92, metalness: 0.02, envMapIntensity: 0.25 });
+  const skin = new THREE.MeshStandardMaterial({ color: pal.skin, roughness: 0.62, metalness: 0.04 });
+  const boots = new THREE.MeshStandardMaterial({ color: pal.boots, roughness: 0.7, metalness: 0.08 });
+  const pouchM = new THREE.MeshStandardMaterial({ color: pal.pouch, roughness: 0.74, metalness: 0.06 });
+  const metal = new THREE.MeshStandardMaterial({ color: 0x4a4e52, roughness: 0.38, metalness: 0.72, envMapIntensity: 0.9 });
+  const strap = new THREE.MeshStandardMaterial({ color: 0x6a5a3c, roughness: 0.8, metalness: 0.05 });
+
+  mesh(g, box, jacket, 0, 1.08, 0, 0.48, 0.22, 0.28);
+  const torso = mesh(g, box, jacket, 0, 1.32, 0, 0.56, 0.42, 0.30);
+  mesh(g, box, jacket, 0, 1.48, 0, 0.62, 0.18, 0.32);
+  mesh(g, cyl, knit, 0, 1.56, 0, 0.09, 0.1, 0.09);
+  mesh(g, box, pants, -0.13, 0.72, 0, 0.20, 0.42, 0.22);
+  mesh(g, box, pants, 0.13, 0.72, 0, 0.20, 0.42, 0.22);
+  mesh(g, box, pants, -0.13, 0.38, 0.02, 0.18, 0.32, 0.20);
+  mesh(g, box, pants, 0.13, 0.38, 0.02, 0.18, 0.32, 0.20);
+  mesh(g, box, boots, -0.13, 0.13, 0.04, 0.20, 0.16, 0.30);
+  mesh(g, box, boots, 0.13, 0.13, 0.04, 0.20, 0.16, 0.30);
+
+  mesh(g, box, vest, 0, 1.30, 0.06, 0.58, 0.34, 0.18);
+  mesh(g, box, strap, 0, 1.42, 0.0, 0.50, 0.05, 0.32);
+  const pouchSpots = [[-0.16, 1.28, 0.16], [0.0, 1.28, 0.17], [0.16, 1.28, 0.16], [-0.10, 1.18, 0.16], [0.10, 1.18, 0.16]];
+  for (const [x, y, z] of pouchSpots) mesh(g, box, pouchM, x, y, z, 0.10, 0.12, 0.08);
+
+  const armL = mesh(g, box, jacket, -0.40, 1.36, 0.02, 0.16, 0.18, 0.16);
+  mesh(g, box, jacket, -0.46, 1.14, 0.10, 0.14, 0.32, 0.14);
+  mesh(g, box, knit, -0.46, 0.96, 0.20, 0.12, 0.10, 0.12);
+  const armR = mesh(g, box, jacket, 0.40, 1.36, 0.06, 0.16, 0.18, 0.16);
+  mesh(g, box, jacket, 0.30, 1.18, 0.22, 0.14, 0.16, 0.28);
+  mesh(g, box, knit, 0.22, 1.12, 0.38, 0.12, 0.10, 0.12);
+
+  const head = mesh(g, sph, knit, 0, 1.74, 0, 0.19, 0.21, 0.20);
+  mesh(head, box, knit, 0, -0.15, 0.15, 1.05, 0.85, 0.95);
+  mesh(head, box, skin, 0, 0.08, 0.82, 0.72, 0.22, 0.18);
+  mesh(head, box, new THREE.MeshStandardMaterial({ color: 0x1a1814, roughness: 0.55 }), -0.22, 0.08, 0.92, 0.18, 0.10, 0.08);
+  mesh(head, box, new THREE.MeshStandardMaterial({ color: 0x1a1814, roughness: 0.55 }), 0.22, 0.08, 0.92, 0.18, 0.10, 0.08);
+  if (pal.beanie) {
+    mesh(head, sph, new THREE.MeshStandardMaterial({ color: pal.beanie, roughness: 0.88, metalness: 0.03 }), 0, 0.42, -0.05, 1.05, 0.55, 1.05);
+  }
   if (pal.helm) {
-    const helm = new THREE.MeshStandardMaterial({ color: pal.helm, roughness: 0.45, metalness: 0.55 });
-    mesh(head, sph, helm, 0, 0.25, 0, 1.15, 0.75, 1.15);
+    const helm = new THREE.MeshStandardMaterial({ color: pal.helm, roughness: 0.48, metalness: 0.35, envMapIntensity: 0.7 });
+    mesh(head, sph, helm, 0, 0.32, -0.04, 1.18, 0.62, 1.18);
+    mesh(head, box, helm, 0, 0.05, 0.7, 1.15, 0.16, 0.35);
   }
+
   if (type === 'rusher') {
-    mesh(armR, box, metal, 0, -0.65, 0.4, 0.25, 0.15, 1.1);
+    mesh(g, box, metal, 0.18, 1.08, 0.52, 0.05, 0.08, 0.42);
+    mesh(g, box, new THREE.MeshStandardMaterial({ color: 0x5a4030, roughness: 0.7 }), 0.18, 1.08, 0.28, 0.06, 0.09, 0.16);
   } else {
-    const gun = mesh(armR, box, metal, 0.1, -0.45, 0.55, 0.18, 0.16, 1.3);
-    mesh(gun, cyl, metal, 0, 0, -0.7, 0.25, 0.7, 0.25);
+    const gun = mesh(g, box, metal, 0.12, 1.14, 0.48, 0.08, 0.08, 0.55);
+    mesh(gun, cyl, metal, 0, 0, -0.62, 0.35, 0.55, 0.35);
+    mesh(gun, box, metal, 0, -0.35, 0.15, 0.5, 0.55, 0.35);
   }
+
   if (type === 'grenadier') {
-    mesh(g, cyl, new THREE.MeshStandardMaterial({ color: 0x6a3a18, roughness: 0.6 }), -0.22, 1.35, 0.2, 0.07, 0.18, 0.07);
-    mesh(g, cyl, new THREE.MeshStandardMaterial({ color: 0x6a3a18, roughness: 0.6 }), -0.08, 1.35, 0.22, 0.07, 0.18, 0.07);
+    mesh(g, cyl, pouchM, -0.22, 1.38, 0.20, 0.07, 0.16, 0.07);
+    mesh(g, cyl, pouchM, -0.08, 1.38, 0.22, 0.07, 0.16, 0.07);
+    mesh(g, cyl, pouchM, 0.22, 1.38, 0.20, 0.07, 0.16, 0.07);
   }
   if (type === 'midboss') {
-    const iron = new THREE.MeshStandardMaterial({ color: 0x5a5c60, metalness: 0.75, roughness: 0.35 });
-    mesh(head, box, iron, 0, 0.05, 0.95, 1.3, 1.1, 0.35);
-    mesh(g, box, iron, 0, 1.35, -0.28, 0.5, 0.45, 0.25);
-    mesh(g, cyl, metal, 0.18, 1.7, -0.32, 0.04, 0.9, 0.04);
-    mesh(g, box, dark, 0, 1.05, 0.05, 0.72, 0.9, 0.38);
+    const iron = new THREE.MeshStandardMaterial({ color: 0xc0c4ca, metalness: 0.7, roughness: 0.32, envMapIntensity: 1.0 });
+    mesh(head, box, iron, 0, 0.02, 0.95, 1.25, 1.05, 0.28);
+    mesh(head, box, new THREE.MeshStandardMaterial({ color: 0x2a2420, roughness: 0.5 }), 0, 0.08, 1.12, 0.7, 0.18, 0.12);
+    mesh(g, box, iron, 0, 1.40, -0.26, 0.48, 0.42, 0.22);
+    mesh(g, cyl, metal, 0.16, 1.78, -0.28, 0.035, 0.85, 0.035);
+    mesh(g, box, jacket, 0, 1.15, 0.02, 0.72, 0.7, 0.38);
   }
   if (type === 'finalboss') {
-    const plate = new THREE.MeshStandardMaterial({ color: 0x3a3c40, metalness: 0.7, roughness: 0.4 });
-    const glow = new THREE.MeshStandardMaterial({ color: 0xff7a30, emissive: 0xff5510, emissiveIntensity: 1.4, roughness: 0.3 });
-    mesh(g, box, plate, -0.48, 1.5, 0, 0.42, 0.28, 0.42);
-    mesh(g, box, plate, 0.48, 1.5, 0, 0.42, 0.28, 0.42);
-    mesh(head, box, glow, 0, 0.1, 0.95, 0.9, 0.18, 0.2);
-    mesh(g, cyl, plate, -0.2, 1.55, -0.32, 0.08, 0.55, 0.08);
-    mesh(g, cyl, plate, 0.2, 1.55, -0.32, 0.08, 0.55, 0.08);
-    mesh(g, box, metal, 0.55, 1.15, 0.35, 0.22, 0.22, 0.9);
+    const plate = new THREE.MeshStandardMaterial({ color: 0x8a929a, metalness: 0.62, roughness: 0.38, envMapIntensity: 0.9 });
+    const glow = new THREE.MeshStandardMaterial({ color: 0xff8a3a, emissive: 0xff6618, emissiveIntensity: 1.35, roughness: 0.28 });
+    mesh(g, box, plate, -0.46, 1.52, 0.02, 0.38, 0.24, 0.38);
+    mesh(g, box, plate, 0.46, 1.52, 0.02, 0.38, 0.24, 0.38);
+    mesh(head, box, glow, 0, 0.1, 0.98, 0.85, 0.16, 0.16);
+    mesh(g, cyl, plate, -0.18, 1.58, -0.30, 0.08, 0.5, 0.08);
+    mesh(g, cyl, plate, 0.18, 1.58, -0.30, 0.08, 0.5, 0.08);
+    mesh(g, box, metal, 0.50, 1.18, 0.38, 0.18, 0.16, 0.72);
   }
-  g.userData.bodyMats = [jacket, vest, pants, skin];
+
+  g.userData.bodyMats = [jacket, vest, pants, knit, skin];
   g.userData.torso = torso;
   g.userData.armR = armR;
   return g;

@@ -6,25 +6,25 @@ export const WEAPON_DEFS = {
     id: 'pistol', name: '锈鹰手枪',
     damage: 30, rpm: 300, mag: 12, reserve: 84, reload: 1.25,
     spread: 0.011, adsSpread: 0.0035, moveSpread: 0.018, recoil: 0.016,
-    pellets: 1, automatic: false, adsFov: 58, kick: 0.034
+    pellets: 1, automatic: false, adsFov: 52, kick: 0.034
   },
   smg: {
     id: 'smg', name: '沙暴冲锋枪',
     damage: 16, rpm: 780, mag: 30, reserve: 150, reload: 1.55,
     spread: 0.016, adsSpread: 0.007, moveSpread: 0.024, recoil: 0.011,
-    pellets: 1, automatic: true, adsFov: 56, kick: 0.02
+    pellets: 1, automatic: true, adsFov: 50, kick: 0.02
   },
   rifle: {
     id: 'rifle', name: '尘脊步枪',
     damage: 24, rpm: 620, mag: 30, reserve: 120, reload: 1.85,
     spread: 0.01, adsSpread: 0.0026, moveSpread: 0.02, recoil: 0.014,
-    pellets: 1, automatic: true, adsFov: 48, kick: 0.026
+    pellets: 1, automatic: true, adsFov: 42, kick: 0.026
   },
   shotgun: {
     id: 'shotgun', name: '巷口霰弹',
     damage: 12, rpm: 72, mag: 6, reserve: 36, reload: 2.4,
     spread: 0.055, adsSpread: 0.036, moveSpread: 0.03, recoil: 0.045,
-    pellets: 8, automatic: false, adsFov: 60, kick: 0.07
+    pellets: 8, automatic: false, adsFov: 54, kick: 0.07
   }
 };
 
@@ -71,7 +71,6 @@ export function buildWeapons() {
   part(pistol, box, M.worn, 0.00, -0.042, 0.046, 0.016, 0.042, 0.014);
   part(pistol, box, M.slide, 0.00, 0.056, -0.086, 0.005, 0.010, 0.010);
   part(pistol, box, M.slide, 0.00, 0.055, 0.068, 0.012, 0.012, 0.010);
-  part(pistol, box, M.rust, 0.011, 0.024, 0.03, 0.002, 0.008, 0.05);
   pistol.userData.muzzle = new THREE.Vector3(0, 0.034, -0.155);
   pistol.userData.hip = new THREE.Vector3(0.16, -0.145, -0.28);
   pistol.userData.aim = new THREE.Vector3(0.0, -0.052, -0.26);
@@ -103,14 +102,13 @@ export function buildWeapons() {
   for (let i = 0; i < 7; i++) part(rifle, box, M.rail, 0, 0.042, -0.20 + i * 0.028, 0.016, 0.007, 0.010);
   part(rifle, box, M.polymer, 0.00, -0.052, 0.06, 0.018, 0.082, 0.028, 0.28, 0, 0);
   part(rifle, box, M.worn, 0.00, -0.07, -0.015, 0.016, 0.078, 0.022);
-  part(rifle, box, M.polymer, 0.00, 0.008, 0.175, 0.020, 0.028, 0.12);
-  part(rifle, box, M.polymer, 0.00, 0.018, 0.25, 0.018, 0.038, 0.028);
+  part(rifle, box, M.polymer, 0.00, 0.008, 0.13, 0.018, 0.024, 0.08);
+  part(rifle, box, M.polymer, 0.00, 0.014, 0.18, 0.016, 0.030, 0.022);
   part(rifle, tube, M.slide, 0.00, 0.072, -0.04, 0.016, 0.058, 0.016, Math.PI / 2, 0, 0);
   part(rifle, cyl, M.glass, 0.00, 0.072, -0.068, 0.014, 0.004, 0.014, Math.PI / 2, 0, 0);
   part(rifle, cyl, M.glass, 0.00, 0.072, -0.012, 0.014, 0.004, 0.014, Math.PI / 2, 0, 0);
   part(rifle, box, M.slide, 0.00, 0.052, -0.04, 0.010, 0.018, 0.016);
   part(rifle, box, M.brass, 0.00, 0.092, -0.04, 0.004, 0.004, 0.004);
-  part(rifle, box, M.rust, 0.013, 0.008, 0.03, 0.002, 0.008, 0.06);
   rifle.userData.muzzle = new THREE.Vector3(0, 0.014, -0.52);
   rifle.userData.hip = new THREE.Vector3(0.16, -0.15, -0.32);
   rifle.userData.aim = new THREE.Vector3(0.0, -0.072, -0.24);
@@ -119,9 +117,9 @@ export function buildWeapons() {
   const shotgun = new THREE.Group();
   part(shotgun, cyl, M.metal, 0.00, 0.032, -0.20, 0.010, 0.38, 0.010, Math.PI / 2, 0, 0);
   part(shotgun, cyl, M.worn, 0.00, 0.008, -0.14, 0.008, 0.26, 0.008, Math.PI / 2, 0, 0);
-  part(shotgun, box, M.wood, 0.00, 0.004, 0.05, 0.028, 0.038, 0.15);
-  part(shotgun, box, M.wood, 0.00, -0.016, 0.20, 0.026, 0.048, 0.16, 0.16, 0, 0);
-  part(shotgun, box, M.wood, 0.00, 0.016, 0.30, 0.024, 0.058, 0.04);
+  part(shotgun, box, M.polymer, 0.00, 0.004, 0.04, 0.026, 0.034, 0.12);
+  part(shotgun, box, M.polymer, 0.00, -0.012, 0.14, 0.022, 0.040, 0.10, 0.12, 0, 0);
+  part(shotgun, box, M.polymer, 0.00, 0.012, 0.20, 0.020, 0.034, 0.028);
   part(shotgun, box, M.worn, 0.00, 0.014, -0.06, 0.030, 0.028, 0.08);
   part(shotgun, box, M.polymer, 0.00, -0.046, 0.07, 0.018, 0.07, 0.024, 0.2, 0, 0);
   for (let i = 0; i < 5; i++) part(shotgun, box, M.rust, 0, 0.048, -0.26 + i * 0.036, 0.02, 0.006, 0.024);
@@ -238,6 +236,8 @@ export class Loadout {
   update(dt, movingSpeed, adsHeld) {
     this.wantAds = adsHeld && this.reloading <= 0;
     this.ads = THREE.MathUtils.damp(this.ads, this.wantAds ? 1 : 0, 10, dt);
+    for (const k of Object.keys(this.models)) this.models[k].visible = (k === this.current);
+    this.flashMesh.visible = this.flash > 0;
     if (this.cooldown > 0) this.cooldown -= dt;
     if (this.reloading > 0) {
       this.reloading -= dt;

@@ -62,7 +62,7 @@ export class Player {
     if (this.invuln > 0) this.invuln -= dt;
     if (this.hurtFlash > 0) this.hurtFlash -= dt;
     const look = this.input.consumeLook();
-    const adsSlow = 1;
+    const adsSlow = this.input.adsHeld ? 0.52 : 1;
     this.yaw -= look.x * this.input.sensitivity * adsSlow;
     this.pitch -= look.y * this.input.sensitivity * adsSlow;
     this.pitch = Math.max(-1.35, Math.min(1.35, this.pitch));

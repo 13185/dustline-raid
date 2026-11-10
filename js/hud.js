@@ -75,5 +75,6 @@ export class HUD {
     ch[1].style.left = spread + 'px';
     ch[2].style.bottom = spread + 'px';
     ch[3].style.top = spread + 'px';
+    this.els.cross.style.opacity = (info.ads || 0) > 0.62 ? '0.15' : '1';
   }
 }

@@ -73,6 +73,7 @@ export class World {
       sandMetal: makeMaterial(t.metalSand, { repeatX: 1.6, repeatY: 1, metalness: 0.6, roughness: 0.42 }),
       wood: makeMaterial(t.wood, { repeatX: 1.2, repeatY: 1.2, roughness: 0.8 }),
       tarp: makeMaterial(t.tarp, { repeatX: 2, repeatY: 2, roughness: 0.9 }),
+      bag: makeMaterial(t.sand, { repeatX: 1.6, repeatY: 1.6, color: 0xd8c896, roughness: 0.94 }),
       wet: makeMaterial(t.asphalt, { repeatX: 3, repeatY: 3, metalness: 0.22, roughness: 0.28, envMapIntensity: 1.4 }),
       dark: new THREE.MeshStandardMaterial({ color: 0x16120e, roughness: 0.9, metalness: 0.05 })
     };
@@ -80,7 +81,7 @@ export class World {
 
   _lights(renderer) {
     this.sunDir = new THREE.Vector3(-0.82, 0.42, 0.28).normalize();
-    const sun = new THREE.DirectionalLight(0xffd6aa, 2.15);
+    const sun = new THREE.DirectionalLight(0xffd8b0, 2.45);
     sun.position.copy(this.sunDir.clone().multiplyScalar(55));
     sun.castShadow = this.quality !== 'low';
     if (sun.castShadow) {
@@ -94,9 +95,9 @@ export class World {
     }
     this.scene.add(sun);
     this.sun = sun;
-    this.scene.add(new THREE.HemisphereLight(0xd7e2ee, 0x5a4030, 0.78));
-    this.scene.add(new THREE.AmbientLight(0x3a342c, 0.22));
-    const fill = new THREE.DirectionalLight(0xa8c0d8, 0.48);
+    this.scene.add(new THREE.HemisphereLight(0xe8eef4, 0x6a5840, 0.95));
+    this.scene.add(new THREE.AmbientLight(0x4a4034, 0.34));
+    const fill = new THREE.DirectionalLight(0xc0d4e8, 0.72);
     fill.position.set(30, 22, -12);
     this.scene.add(fill);
     const bay = new THREE.PointLight(0xff9a4a, 2.1, 22, 1.6);
@@ -241,7 +242,7 @@ export class World {
     this.cyl(this.mats.brick, 0, 0.42, 0, 1.35, 0.84);
     this.cyl(this.mats.concrete ? this.mats.slab : this.mats.slab, 0, 0.95, 0, 1.5, 0.18);
     this.cyl(this.mats.dark, 0, 0.55, 0, 0.95, 0.7, false);
-    this.sandbags(4.6, 3.8, 1.15);
+    this.sandbags(7.2, 1.6, 0.4);
     this.sandbags(-5.2, 5.1, -0.4);
     this.sandbags(6.8, -4.2, 0.3);
     this.sandbags(-3.4, -8.4, 0.6);
@@ -252,7 +253,7 @@ export class World {
     g.position.set(x, 0, z);
     g.rotation.y = rot;
     for (let i = 0; i < 5; i++) {
-      const bag = new THREE.Mesh(this.geo.box, this.mats.tarp);
+      const bag = new THREE.Mesh(this.geo.box, this.mats.bag);
       bag.scale.set(0.75, 0.28, 0.42);
       bag.position.set((i % 3) * 0.62 - 0.62, 0.18 + Math.floor(i / 3) * 0.28, (i % 2) * 0.08);
       bag.rotation.y = (i - 2) * 0.08;
@@ -325,7 +326,7 @@ export class World {
     this.cyl(this.mats.dark, 12.5, 0.48, 14.6, 0.42, 0.18, false);
     this._decal('07', 16.4, 2.2, -5.95, this.mats.teal);
     this._paintedWall();
-    this.box(this.mats.wood, 1.8, 0.08, 7.4, 3.6, 0.16, 1.4, false);
+    this.box(this.mats.wood, -9.4, 0.42, 13.6, 1.6, 0.84, 0.7);
     this.box(this.mats.wood, -1.6, 0.42, -5.2, 2.4, 0.84, 0.7);
     this.box(this.mats.brick, -13.6, 0.35, 12.6, 1.8, 0.7, 3.2);
     this.box(this.mats.plaster2, 8.6, 1.8, 21.0, 0.2, 1.4, 0.2, false);

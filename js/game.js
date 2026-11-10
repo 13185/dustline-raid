@@ -61,6 +61,8 @@ export class Game {
     this.camera = new THREE.PerspectiveCamera(72, innerWidth / innerHeight, 0.05, 220);
     this.baseFov = 72;
     this.titleT = 0;
+    this.awaitingLock = false;
+    this._unlockIntent = false;
     this._bindUI();
   }
 
@@ -82,12 +84,12 @@ export class Game {
     this.fx = new PostFX(this.renderer, { quality: this.quality });
     onProgress(0.95, '校正准星');
     addEventListener('resize', () => this._resize());
-    this.input.onWheel = (d) => { if (this.mode === 'play') this.loadout.cycle(d > 0 ? 1 : -1); };
-    this.input.onTouchAct = (act, down) => this._touch(act, down);
+    this.input.onWheel = (d) => { if (this.mode === 'play' && !this.awaitingLock) this.loadout.cycle(d > 0 ? 1 : -1); };
+    this.input.onLockChange = (locked) => this._onLockChange(locked);
     addEventListener('keydown', (e) => this._keydown(e));
     this.mode = 'title';
     this._show('title');
-    if (this.input.isTouch) this.input.showTouch(true);
+    this.input.showTouch(false);
     onProgress(1, '就绪');
     this._expose();
     this._applyShot();
@@ -103,6 +105,13 @@ export class Game {
 
   _bindUI() {
     $('btnStart').onclick = () => { this.audio.ui(); this.startRun(); };
+    const resumeLock = document.getElementById('btnClickResume');
+    if (resumeLock) resumeLock.onclick = () => this._requestPlayLock();
+    const clickResume = document.getElementById('clickResume');
+    if (clickResume) clickResume.addEventListener('mousedown', (e) => {
+      if (e.target && e.target.closest('button,select,input,label')) return;
+      this._requestPlayLock();
+    });
     $('btnResume').onclick = () => this.resume();
     $('btnToTitle').onclick = () => this.toTitle();
     $('btnRetry').onclick = () => this.retryWave();
@@ -136,10 +145,42 @@ export class Game {
   }
 
   _show(which) {
-    for (const id of ['boot', 'title', 'upgrade', 'pause', 'dead', 'results']) {
-      $(id).classList.toggle('hidden', id !== which);
+    for (const id of ['boot', 'title', 'upgrade', 'pause', 'dead', 'results', 'clickResume']) {
+      if ($(id)) $(id).classList.toggle('hidden', id !== which);
     }
     this.hud.show(which === null);
+  }
+
+  _releaseLock() {
+    this._unlockIntent = true;
+    this.input.exitLock();
+  }
+
+  _requestPlayLock() {
+    this.input.requestLock();
+  }
+
+  _onLockChange(locked) {
+    if (locked) {
+      this.awaitingLock = false;
+      const el = $('clickResume');
+      if (el) el.classList.add('hidden');
+      this._unlockIntent = false;
+      return;
+    }
+    if (this._unlockIntent) {
+      this._unlockIntent = false;
+      return;
+    }
+    if (this.mode === 'play') this._showClickResume();
+  }
+
+  _showClickResume() {
+    this.awaitingLock = true;
+    this.input.fireHeld = false;
+    this.input.adsHeld = false;
+    const el = $('clickResume');
+    if (el) el.classList.remove('hidden');
   }
 
   startRun() {
@@ -163,10 +204,11 @@ export class Game {
 
   _enterPlay() {
     this.mode = 'play';
+    this.awaitingLock = false;
     this._show(null);
     this.hud.show(true);
-    if (this.input.isTouch) this.input.showTouch(true);
-    else this.input.requestLock();
+    this.input.showTouch(false);
+    this.input.requestLock();
     this.canvas.focus?.();
   }
 
@@ -190,19 +232,14 @@ export class Game {
       if (e.code === 'Digit2') this.loadout.select(this.loadout.owned[1]);
       if (e.code === 'Digit3') this.loadout.select(this.loadout.owned[2]);
       if (e.code === 'Digit4') this.loadout.select(this.loadout.owned[3]);
-    } else if (this.mode === 'pause' && e.code === 'Escape') this.resume();
-  }
-
-  _touch(act, down) {
-    if (act === 'reload' && down && this.loadout.startReload()) this.audio.reload();
-    if (act === 'jump') this.input.keys.Space = down;
-    if (act === 'swap' && down) this.loadout.cycle(1);
+    }
   }
 
   pause() {
     if (this.mode !== 'play') return;
+    this.awaitingLock = false;
     this.mode = 'pause';
-    this.input.exitLock();
+    this._releaseLock();
     this._show('pause');
     $('selQuality2').value = this.quality;
   }
@@ -215,8 +252,9 @@ export class Game {
   toTitle() {
     this.mode = 'title';
     this.combat.clearAll();
-    this.input.exitLock();
-    this.input.showTouch(this.input.isTouch);
+    this.awaitingLock = false;
+    this._releaseLock();
+    this.input.showTouch(false);
     this._show('title');
     this.hud.show(false);
   }
@@ -272,7 +310,8 @@ export class Game {
   openUpgrade(wave) {
     if (!wave.reward) { this._advance(); return; }
     this.mode = 'upgrade';
-    this.input.exitLock();
+    this.awaitingLock = false;
+    this._releaseLock();
     this._show('upgrade');
     $('upTitle').textContent = `第 ${wave.id} 波完成 — ${wave.reward.title}`;
     $('upSub').textContent = wave.name + ' 已肃清。下一波会更密。';
@@ -300,7 +339,8 @@ export class Game {
 
   showResults(won) {
     this.mode = 'results';
-    this.input.exitLock();
+    this.awaitingLock = false;
+    this._releaseLock();
     this._show('results');
     this.hud.show(false);
     const t = (performance.now() - this.stats.startedAt) / 1000;
@@ -369,6 +409,10 @@ export class Game {
   _play(dt) {
     this.camera.fov = THREE.MathUtils.lerp(this.baseFov, this.loadout.def().adsFov, this.loadout.ads);
     this.camera.updateProjectionMatrix();
+    if (this.awaitingLock) {
+      this.loadout.update(dt, 0, false);
+      return;
+    }
     const st = this.player.update(dt);
     this._moving = st.moving || 0;
     if (st.foot) this.audio.foot();
@@ -379,7 +423,7 @@ export class Game {
     if (!this.player.alive) {
       this.stats.deaths += 1;
       this.mode = 'dead';
-      this.input.exitLock();
+      this._releaseLock();
       this._show('dead');
       this.audio.hurt();
       return;
@@ -405,7 +449,8 @@ export class Game {
       reserve: this.loadout.ammo().reserve,
       nades: this.loadout.grenades,
       hurt: this.player.hurtFlash,
-      spread: this.loadout.currentSpread(this._moving > 1.4)
+      spread: this.loadout.currentSpread(this._moving > 1.4),
+      ads: this.loadout.ads
     });
   }
 
@@ -419,29 +464,38 @@ export class Game {
       if (s === 'yard') {
         this._show(null);
         this.hud.show(false);
-        ['title', 'boot', 'upgrade', 'pause', 'dead', 'results'].forEach((id) => $(id).classList.add('hidden'));
+        ['title', 'boot', 'upgrade', 'pause', 'dead', 'results', 'clickResume'].forEach((id) => $(id)?.classList.add('hidden'));
+        [['rusher', 1.4, 6.8], ['rifle', -1.2, 3.4], ['shotgun', 3.6, 5.2], ['grenadier', -3.6, 7.4]].forEach(([tp, x, z]) => {
+          const e = this.combat.spawn(tp, x, z);
+          e.state = 'chase';
+          e.root.rotation.y = Math.atan2(7.8 - x, 11.6 - z);
+        });
       }
     }
     if (s === 'gun' || s === 'ads' || s === 'wave' || s === 'boss' || s === 'upgrade') {
       this.startRun();
-      this.player.position.set(2.2, 0, 8.5);
-      this.player.yaw = -0.15;
-      this.player.pitch = -0.04;
+      this.player.position.set(1.4, 0, 10.2);
+      this.player.yaw = -0.08;
+      this.player.pitch = -0.05;
       if (s === 'ads' || s === 'gun') {
-        this.loadout.unlock('rifle'); this.loadout.select(s === 'ads' ? 'rifle' : 'pistol');
+        this.loadout.unlock('rifle');
+        this.loadout.select('rifle');
         if (s === 'ads') { this.input.adsHeld = true; this.loadout.ads = 1; }
+        else { this.input.adsHeld = false; this.loadout.ads = 0; }
       }
       if (s === 'wave') {
         this.combat.clearAll();
         this.waves.queue = [];
-        this.waves.doneSpawning = false;
-        [['rusher', -2, 2], ['rifle', 2.4, 0.6], ['shotgun', -0.4, -3.2], ['grenadier', 4.5, -5]].forEach(([t, x, z]) => this.combat.spawn(t, x, z));
+        this.waves.doneSpawning = true;
+        [['rusher', -2.2, 3.4], ['rifle', 1.6, 2.1], ['shotgun', -0.2, -1.4], ['grenadier', 3.8, -2.6]].forEach(([tp, x, z]) => this.combat.spawn(tp, x, z));
+        this.hud.banner('第 1 波  货栈警戒', false);
       }
       if (s === 'boss') {
         this.combat.clearAll();
         this.waves.queue = [];
-        this.combat.spawn('midboss', 0.6, -2.2);
-        this.combat.spawn('rusher', -3, -1);
+        this.waves.doneSpawning = true;
+        this.combat.spawn('midboss', 0.8, 4.6);
+        this.combat.spawn('rusher', -2.6, 6.0);
         this.hud.banner('中场头目 · 铁罩督战', true);
       }
       if (s === 'upgrade') {
@@ -466,7 +520,15 @@ export class Game {
         owned: self.loadout.owned.slice(),
         ammo: self.loadout.ammo().mag,
         living: self.combat.living().length,
-        pos: { x: self.player.position.x, z: self.player.position.z }
+        pos: { x: self.player.position.x, z: self.player.position.z },
+        yaw: self.player.yaw,
+        pitch: self.player.pitch,
+        locked: self.input.locked,
+        lockCalls: self.input.lockCalls,
+        adsHeld: self.input.adsHeld,
+        ads: self.loadout.ads,
+        fov: self.camera.fov,
+        awaitingLock: self.awaitingLock
       }),
       start: () => self.startRun(),
       spawnEnemy: (type, x, z) => self.combat.spawn(type || 'rusher', x ?? 0, z ?? 6),
