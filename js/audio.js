@@ -104,6 +104,11 @@ export class AudioBus {
     setTimeout(() => this.tone(52, 0.7, 'square', 0.06), 80);
   }
   ui() { this.resume(); this.tone(440, 0.05, 'square', 0.04); }
+  pickup(medkit = false) {
+    this.resume();
+    this.tone(medkit ? 520 : 360, 0.07, 'triangle', 0.07);
+    setTimeout(() => this.tone(medkit ? 720 : 480, 0.09, 'sine', 0.06), 70);
+  }
   explode() {
     this.resume();
     if (!this.ctx) return;

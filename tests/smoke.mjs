@@ -242,6 +242,118 @@ function ok(cond, msg) {
   await page.close();
 }
 
+{
+  const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+  await page.goto(BASE + '/?quality=low&v=loot', { waitUntil: 'domcontentloaded', timeout: 60000 });
+  await waitReady(page);
+  await page.click('#btnStart');
+  await page.waitForFunction(() => window.__dustline.state().mode === 'play');
+  const extra = await page.evaluate(() => {
+    const g = window.__game;
+    g.combat.clearAll();
+    g.player.position.set(0, 0, 16.4);
+    g.player.hp = 100;
+    const e = g.combat.spawn('rifle', 0, 10);
+    e.state = 'chase';
+    e.updateHealthBar(g.camera, g.player);
+    const shownNear = e.hpBar.visible;
+    const fullW = e.hpBar.userData.fill.scale.x;
+    e.applyDamage(30);
+    e.updateHealthBar(g.camera, g.player);
+    const shownHit = e.hpBar.visible;
+    const hitW = e.hpBar.userData.fill.scale.x;
+    e.applyDamage(9999);
+    e.updateHealthBar(g.camera, g.player);
+    const shownDead = e.hpBar.visible;
+
+    g.combat.clearAll();
+    const boss = g.combat.spawn('midboss', 2, 8);
+    g.hud.update(0.016, {
+      wave: 5, obj: 'boss', kills: 0, score: 0, hp: 100, maxHp: 100,
+      weapon: 'x', ammo: 1, reserve: 1, nades: 0, hurt: 0, spread: 0, ads: 0,
+      boss: { name: boss.def.name, hp: boss.hp, maxHp: boss.maxHp }
+    });
+    const bossBarOn = !document.getElementById('bossBar').classList.contains('hidden');
+    const bossName = document.getElementById('bossName').textContent;
+
+    g.hud.update(0.016, {
+      wave: 1, obj: '', kills: 0, score: 0, hp: 22, maxHp: 100,
+      weapon: 'x', ammo: 1, reserve: 1, nades: 0, hurt: 0.3, spread: 0, ads: 0, boss: null
+    });
+    const lowOn = document.getElementById('lowHpWarn').classList.contains('show');
+    const lowClass = document.querySelector('.hpbox').classList.contains('hp-low');
+    const warnText = document.getElementById('lowHpWarn').textContent;
+    const hurtOp = parseFloat(document.getElementById('hurt').style.opacity || '0');
+
+    g.hud.healPop(25);
+    const popOn = document.getElementById('healPop').classList.contains('show');
+    const popText = document.getElementById('healPop').textContent;
+
+    g.combat.clearAll();
+    g.player.hp = 50;
+    const beforeHp = g.player.hp;
+    g.loot.spawn('medkit', g.player.position.x, g.player.position.z);
+    g.loot.update(0.016, g.player, g.loadout, g.hud);
+    const afterHeal = g.player.hp;
+    const afterHealCount = g.loot.items.length;
+
+    g.player.hp = 100;
+    g.loot.spawn('medkit', g.player.position.x, g.player.position.z);
+    const preFull = g.loot.items.length;
+    g.loot.update(0.016, g.player, g.loadout, g.hud);
+    const fullLeft = g.loot.items.length;
+    const hpStillFull = g.player.hp;
+
+    g.loadout.state.pistol.reserve = 10;
+    g.loot.clear();
+    g.loot.spawn('ammo', g.player.position.x, g.player.position.z);
+    g.loot.update(0.016, g.player, g.loadout, g.hud);
+    const reserve = g.loadout.state.pistol.reserve;
+    const afterAmmoCount = g.loot.items.length;
+
+    const rnd = Math.random;
+    Math.random = () => 0;
+    g.loot.clear();
+    const grunt = g.combat.spawn('rusher', 4, 8);
+    grunt.applyDamage(9999);
+    g.combat.update(0.016, g.player);
+    const gruntDrops = g.loot.items.map((i) => i.kind).sort();
+    g.loot.clear();
+    const mb = g.combat.spawn('midboss', 6, 8);
+    Math.random = () => 0.99;
+    mb.applyDamage(9999);
+    g.combat.update(0.016, g.player);
+    const bossDrops = g.loot.items.map((i) => i.kind).sort();
+    Math.random = rnd;
+
+    return {
+      shownNear, shownHit, shownDead, fullW, hitW,
+      bossBarOn, bossName, lowOn, lowClass, warnText, hurtOp,
+      popOn, popText, beforeHp, afterHeal, afterHealCount,
+      preFull, fullLeft, hpStillFull, reserve, afterAmmoCount,
+      gruntDrops, bossDrops
+    };
+  });
+  ok(extra.shownNear, 'nearby enemy shows hp bar');
+  ok(extra.shownHit, 'damaged enemy shows hp bar');
+  ok(!extra.shownDead, 'hp bar hidden on death');
+  ok(extra.hitW < extra.fullW - 0.05, 'hp fill shrinks after damage ' + extra.hitW + ' < ' + extra.fullW);
+  ok(extra.bossBarOn, 'boss bar visible');
+  ok(extra.bossName.includes('铁罩督战'), 'boss bar name ' + extra.bossName);
+  ok(extra.lowOn && extra.lowClass, 'low-HP warning + red HUD');
+  ok(extra.warnText.includes('血量过低'), 'low-HP text');
+  ok(extra.hurtOp > 0.1, 'hurt vignette visible');
+  ok(extra.popOn && extra.popText.includes('25'), 'heal popup +25');
+  ok(extra.afterHeal === extra.beforeHp + 25, 'medkit heals 25: ' + extra.beforeHp + ' -> ' + extra.afterHeal);
+  ok(extra.afterHealCount === 0, 'medkit removed after pickup');
+  ok(extra.fullLeft === extra.preFull && extra.hpStillFull === 100, 'full HP leaves medkit on ground');
+  ok(extra.reserve > 10, 'ammo box increases reserve ' + extra.reserve);
+  ok(extra.afterAmmoCount === 0, 'ammo box removed after pickup');
+  ok(extra.gruntDrops.includes('ammo') && extra.gruntDrops.includes('medkit'), 'forced grunt drops both: ' + extra.gruntDrops.join(','));
+  ok(extra.bossDrops.includes('ammo') && extra.bossDrops.includes('medkit'), 'boss guaranteed both: ' + extra.bossDrops.join(','));
+  await page.close();
+}
+
 await browser.close();
 if (fails.length) {
   console.error('Smoke failed:', fails);

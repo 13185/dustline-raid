@@ -16,11 +16,19 @@ export class HUD {
       toast: document.getElementById('pickupToast'),
       hit: document.getElementById('hitmarker'),
       hurt: document.getElementById('hurt'),
-      cross: document.getElementById('crosshair')
+      cross: document.getElementById('crosshair'),
+      lowHp: document.getElementById('lowHpWarn'),
+      healPop: document.getElementById('healPop'),
+      hpBox: document.querySelector('.hpbox'),
+      bossBar: document.getElementById('bossBar'),
+      bossName: document.getElementById('bossName'),
+      bossFill: document.getElementById('bossFill'),
+      bossHp: document.getElementById('bossHpText')
     };
     this.bannerT = 0;
     this.toastT = 0;
     this.hitT = 0;
+    this.healPopT = 0;
   }
 
   show(v) { document.getElementById('hud').classList.toggle('hidden', !v); }
@@ -44,6 +52,13 @@ export class HUD {
     this.hitT = 0.12;
   }
 
+  healPop(n) {
+    if (!this.els.healPop || !(n > 0)) return;
+    this.els.healPop.textContent = `+${Math.round(n)} 生命`;
+    this.els.healPop.classList.add('show');
+    this.healPopT = 1.15;
+  }
+
   update(dt, info) {
     if (this.bannerT > 0) {
       this.bannerT -= dt;
@@ -57,18 +72,43 @@ export class HUD {
       this.hitT -= dt;
       if (this.hitT <= 0) this.els.hit.classList.remove('on');
     }
+    if (this.healPopT > 0) {
+      this.healPopT -= dt;
+      if (this.healPopT <= 0) this.els.healPop?.classList.remove('show');
+    }
     if (!info) return;
     this.els.wave.textContent = `${info.wave} / 8`;
     this.els.obj.textContent = info.obj;
     this.els.kills.textContent = String(info.kills);
     this.els.score.textContent = String(info.score);
-    this.els.hp.textContent = String(Math.ceil(info.hp));
-    this.els.hpMax.textContent = '/ ' + info.maxHp;
-    this.els.hpFill.style.width = `${Math.max(0, info.hp / info.maxHp * 100)}%`;
+    const hp = Math.max(0, info.hp);
+    const maxHp = Math.max(1, info.maxHp);
+    const pct = hp / maxHp;
+    this.els.hp.textContent = String(Math.ceil(hp));
+    this.els.hpMax.textContent = '/ ' + maxHp;
+    this.els.hpFill.style.width = `${Math.max(0, pct * 100)}%`;
+    if (this.els.hpBox) {
+      this.els.hpBox.classList.toggle('hp-ok', pct >= 0.55);
+      this.els.hpBox.classList.toggle('hp-mid', pct >= 0.3 && pct < 0.55);
+      this.els.hpBox.classList.toggle('hp-low', pct < 0.3);
+    }
+    if (this.els.lowHp) this.els.lowHp.classList.toggle('show', pct < 0.3 && hp > 0);
+    const flash = Math.max(0, info.hurt || 0) / 0.45;
+    const lowPulse = (pct < 0.3 && hp > 0)
+      ? 0.22 + 0.16 * (0.5 + 0.5 * Math.sin(performance.now() * 0.008))
+      : 0;
+    this.els.hurt.style.opacity = String(Math.min(0.92, Math.max(flash * 0.9, lowPulse)));
+    if (info.boss && info.boss.hp > 0 && this.els.bossBar) {
+      this.els.bossBar.classList.remove('hidden');
+      this.els.bossName.textContent = info.boss.name;
+      this.els.bossFill.style.width = `${Math.max(0, info.boss.hp / info.boss.maxHp * 100)}%`;
+      this.els.bossHp.textContent = `${Math.ceil(info.boss.hp)} / ${info.boss.maxHp}`;
+    } else if (this.els.bossBar) {
+      this.els.bossBar.classList.add('hidden');
+    }
     this.els.weapon.textContent = info.weapon;
     this.els.ammo.textContent = String(info.ammo);
     this.els.reserve.textContent = '/ ' + info.reserve + (info.nades ? `  ·  雷 ${info.nades}` : '');
-    this.els.hurt.style.opacity = String(Math.max(0, info.hurt));
     const spread = 7 + info.spread * 520;
     const ch = this.els.cross.querySelectorAll('.ch');
     ch[0].style.right = spread + 'px';

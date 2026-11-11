@@ -192,6 +192,19 @@ export class Loadout {
     this.flashGroup.traverse((o) => { if (o.material) o.material.opacity = op; });
   }
 
+  addAmmoChunk() {
+    let added = 0;
+    for (const id of this.owned) {
+      const d = WEAPON_DEFS[id];
+      if (!d || !this.state[id]) continue;
+      const chunk = d.mag * (id === this.current ? 2 : 1);
+      const before = this.state[id].reserve;
+      this.state[id].reserve = Math.min(d.reserve, before + chunk);
+      added += this.state[id].reserve - before;
+    }
+    return added;
+  }
+
   refill() {
     for (const id of Object.keys(WEAPON_DEFS)) {
       const d = WEAPON_DEFS[id];

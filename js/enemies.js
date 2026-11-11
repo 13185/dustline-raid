@@ -2,6 +2,27 @@
 import * as THREE from '../vendor/three/three.module.js';
 import { instantiateCharacter } from './assets.js';
 
+function makeEnemyHealthBar() {
+  const g = new THREE.Group();
+  const back = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.74, 0.1),
+    new THREE.MeshBasicMaterial({ color: 0x120c08, transparent: true, opacity: 0.88, depthWrite: false })
+  );
+  const fill = new THREE.Mesh(
+    new THREE.PlaneGeometry(1, 1),
+    new THREE.MeshBasicMaterial({ color: 0x3dcc55, transparent: true, opacity: 0.96, depthWrite: false })
+  );
+  fill.scale.set(0.68, 0.058, 1);
+  fill.position.z = 0.002;
+  g.add(back);
+  g.add(fill);
+  g.userData.fill = fill;
+  g.userData.skipHit = true;
+  g.traverse((o) => { o.userData.skipHit = true; o.renderOrder = 2; });
+  g.visible = false;
+  return g;
+}
+
 export const ENEMY_DEFS = {
   rusher: { name: '面罩突袭兵', hp: 48, speed: 3.7, damage: 12, range: 1.55, interval: 0.7, score: 80, kind: 'melee' },
   rifle: { name: '钢盔火枪手', hp: 70, speed: 2.25, damage: 9, range: 16, interval: 0.95, score: 110, kind: 'gun' },
@@ -38,6 +59,10 @@ export class Enemy {
     this.strafe = Math.random() > 0.5 ? 1 : -1;
     this.root.traverse((o) => { o.userData.skipHit = true; });
     this.spawnGrace = (this.def.kind === 'melee' || this.def.kind === 'boss') ? 0.9 : 0.45;
+    this.wasHit = false;
+    this.justDied = false;
+    this.hpBar = makeEnemyHealthBar();
+    scene.add(this.hpBar);
   }
 
   pos() { return this.root.position; }
@@ -51,14 +76,35 @@ export class Enemy {
     if (!this.alive) return 0;
     this.hp -= amt;
     this.flash = 0.18;
+    this.wasHit = true;
     if (this.hp <= 0) {
       this.hp = 0;
       this.alive = false;
       this.state = 'dead';
       this.deadT = 0;
+      this.justDied = true;
+      if (this.hpBar) this.hpBar.visible = false;
       return this.def.score;
     }
     return 0;
+  }
+
+  updateHealthBar(camera, player) {
+    if (!this.hpBar) return;
+    if (!this.alive) {
+      this.hpBar.visible = false;
+      return;
+    }
+    const dist = this.root.position.distanceTo(player.position);
+    this.hpBar.visible = !!(this.wasHit || dist < 30);
+    if (!this.hpBar.visible) return;
+    this.hpBar.position.set(this.root.position.x, this.root.position.y + this.height + 0.36, this.root.position.z);
+    this.hpBar.quaternion.copy(camera.quaternion);
+    const pct = Math.max(0, this.hp / this.maxHp);
+    const fill = this.hpBar.userData.fill;
+    fill.scale.x = 0.68 * Math.max(0.03, pct);
+    fill.position.x = -0.34 * (1 - pct);
+    fill.material.color.set(pct > 0.55 ? 0x3dcc55 : pct > 0.3 ? 0xe8b02a : 0xd42a1c);
   }
 
   update(dt, player, world, combat) {
@@ -190,11 +236,12 @@ function rayCapsule(origin, dir, x, z, y0, y1, r) {
 }
 
 export class Combat {
-  constructor(scene, world, audio, catalog) {
+  constructor(scene, world, audio, catalog, loot = null) {
     this.scene = scene;
     this.world = world;
     this.audio = audio;
     this.catalog = catalog;
+    this.loot = loot;
     this.enemies = [];
     this.fx = [];
     this.ray = new THREE.Raycaster();
@@ -374,11 +421,26 @@ export class Combat {
     });
   }
 
+  syncBars(camera, player) {
+    for (const e of this.enemies) e.updateHealthBar(camera, player);
+  }
+
+  disposeEnemy(e) {
+    this.scene.remove(e.root);
+    if (e.hpBar) this.scene.remove(e.hpBar);
+  }
+
   update(dt, player) {
     for (let i = this.enemies.length - 1; i >= 0; i--) {
-      const gone = this.enemies[i].update(dt, player, this.world, this);
+      const e = this.enemies[i];
+      if (e.justDied) {
+        e.justDied = false;
+        this.loot?.spawnFrom(e, player);
+      }
+      const gone = e.update(dt, player, this.world, this);
+      e.updateHealthBar(player.camera, player);
       if (gone) {
-        this.scene.remove(this.enemies[i].root);
+        this.disposeEnemy(e);
         this.enemies.splice(i, 1);
       }
     }
@@ -411,9 +473,10 @@ export class Combat {
   }
 
   clearAll() {
-    for (const e of this.enemies) this.scene.remove(e.root);
+    for (const e of this.enemies) this.disposeEnemy(e);
     this.enemies.length = 0;
     for (const f of this.fx) this.scene.remove(f.mesh);
     this.fx.length = 0;
+    this.loot?.clear();
   }
 }

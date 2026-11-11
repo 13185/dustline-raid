@@ -7,6 +7,7 @@ import { Input } from './input.js';
 import { World } from './world.js';
 import { Loadout, WEAPON_DEFS } from './weapons.js';
 import { Combat } from './enemies.js';
+import { LootField } from './drops.js';
 import { Player } from './player.js';
 import { WaveDirector, WAVES } from './waves.js';
 import { HUD } from './hud.js';
@@ -82,7 +83,8 @@ export class Game {
     this.gunScene.environment = this.scene.environment;
     this.player = new Player(this.camera, this.world, this.input);
     this.loadout = new Loadout(this.gunScene, this.camera, this.assets.viewmodels);
-    this.combat = new Combat(this.scene, this.world, this.audio, this.assets.characters);
+    this.loot = new LootField(this.scene, this.audio);
+    this.combat = new Combat(this.scene, this.world, this.audio, this.assets.characters, this.loot);
     this.waves = new WaveDirector(this.combat, this.world);
     this.fx = new PostFX(this.renderer, { quality: this.quality });
     onProgress(0.95, '校正准星');
@@ -288,7 +290,7 @@ export class Game {
     if (id === 'gun_smg') { L.unlock('smg'); L.select('smg'); }
     if (id === 'gun_rifle') { L.unlock('rifle'); L.select('rifle'); }
     if (id === 'gun_shotgun') { L.unlock('shotgun'); L.select('shotgun'); }
-    if (id === 'heal') { P.maxHp += 20; P.heal(50); }
+    if (id === 'heal') { P.maxHp += 20; const g = P.heal(50); if (g > 0) this.hud.healPop(g); }
     if (id === 'ammo') {
       L.refill();
       for (const k of Object.keys(L.state)) L.state[k].reserve += 40;
@@ -299,11 +301,11 @@ export class Game {
       else if (!L.owned.includes('shotgun')) { L.unlock('shotgun'); L.select('shotgun'); }
       L.grenades += 2;
     }
-    if (id === 'vest') { P.armor = Math.max(P.armor, 0.25); P.heal(999); }
+    if (id === 'vest') { P.armor = Math.max(P.armor, 0.25); const g = P.heal(999); if (g > 0) this.hud.healPop(g); }
     if (id === 'dmg') P.dmgMul += 0.22;
     if (id === 'rpm') P.rpmMul += 0.2;
     if (id === 'fullkit') {
-      P.heal(999);
+      const fg = P.heal(999); if (fg > 0) this.hud.healPop(fg);
       L.refill();
       L.grenades = Math.max(L.grenades, 3);
       P.armor = Math.min(0.45, P.armor + 0.1);
@@ -397,6 +399,7 @@ export class Game {
     requestAnimationFrame(this.loop);
     const dt = Math.min(0.05, this.clock.getDelta());
     this.world.update(dt);
+    if (this.combat) this.combat.syncBars(this.camera, this.player);
     if (this.mode === 'title' || this._shotMode === 'yard' || this._shotMode === 'title') {
       this._titleCam(dt);
     } else if (this.mode === 'play') {
@@ -431,6 +434,7 @@ export class Game {
     this.loadout.update(dt, (st.moving || 0) / 5.2, this.input.adsHeld || !!this.input.keys.MouseRight);
     if (this.input.fireHeld) this._tryFire();
     this.combat.update(dt, this.player);
+    this.loot.update(dt, this.player, this.loadout, this.hud);
     const cleared = this.waves.update(dt, this.player);
     if (!this.player.alive) {
       this.stats.deaths += 1;
@@ -443,7 +447,8 @@ export class Game {
     if (this.player.hurtFlash > 0 && Math.random() < 0.05) this.audio.hurt();
     if (cleared === 'cleared') {
       const w = this.waves.current();
-      this.player.heal(18);
+      const gained = this.player.heal(18);
+      if (gained > 0) this.hud.healPop(gained);
       if (w.id === 8) this.showResults(true);
       else this.openUpgrade(w);
     }
@@ -462,7 +467,31 @@ export class Game {
       nades: this.loadout.grenades,
       hurt: this.player.hurtFlash,
       spread: this.loadout.currentSpread(this._moving > 1.4),
-      ads: this.loadout.ads
+      ads: this.loadout.ads,
+      boss: (() => {
+        const b = this.combat.living().find((e) => e.def.kind === 'boss');
+        return b ? { name: b.def.name, hp: b.hp, maxHp: b.maxHp } : null;
+      })()
+    });
+  }
+
+  _pushHud() {
+    const b = this.combat.living().find((e) => e.def.kind === 'boss');
+    this.hud.update(0.016, {
+      wave: this.waves.current()?.id || 1,
+      obj: this.objective || '',
+      kills: this.stats.kills,
+      score: this.stats.score,
+      hp: this.player.hp,
+      maxHp: this.player.maxHp,
+      weapon: this.loadout.def().name,
+      ammo: this.loadout.ammo().mag,
+      reserve: this.loadout.ammo().reserve,
+      nades: this.loadout.grenades,
+      hurt: this.player.hurtFlash,
+      spread: 0.01,
+      ads: this.loadout.ads,
+      boss: b ? { name: b.def.name, hp: b.hp, maxHp: b.maxHp } : null
     });
   }
 
@@ -480,11 +509,13 @@ export class Game {
         [['rusher', 1.4, 6.8], ['rifle', -1.2, 3.4], ['shotgun', 3.6, 5.2], ['grenadier', -3.6, 7.4]].forEach(([tp, x, z]) => {
           const e = this.combat.spawn(tp, x, z);
           e.state = 'chase';
+          e.wasHit = true;
+          e.applyDamage(e.maxHp * 0.35);
           e.root.rotation.y = Math.atan2(7.8 - x, 11.6 - z);
         });
       }
     }
-    if (s === 'gun' || s === 'ads' || s === 'wave' || s === 'boss' || s === 'upgrade') {
+    if (s === 'gun' || s === 'ads' || s === 'wave' || s === 'boss' || s === 'upgrade' || s === 'bars' || s === 'lowhp' || s === 'drops') {
       this.startRun();
       this.player.position.set(1.4, 0, 10.2);
       this.player.yaw = -0.08;
@@ -513,6 +544,34 @@ export class Game {
       if (s === 'upgrade') {
         this.openUpgrade(WAVES[2]);
       }
+      if (s === 'bars') {
+        this.combat.clearAll();
+        this.waves.queue = [];
+        this.waves.doneSpawning = true;
+        [['rusher', -2.0, 4.2], ['rifle', 1.4, 3.2], ['shotgun', -0.2, 1.6]].forEach(([tp, x, z]) => {
+          const e = this.combat.spawn(tp, x, z);
+          e.state = 'chase';
+          e.applyDamage(e.maxHp * 0.42);
+        });
+        this.hud.show(true);
+      }
+      if (s === 'lowhp') {
+        this.player.hp = 22;
+        this.player.hurtFlash = 0.35;
+        this.hud.show(true);
+      }
+      if (s === 'drops') {
+        this.combat.clearAll();
+        this.waves.queue = [];
+        this.waves.doneSpawning = true;
+        this.waves.cleared = true;
+        this.loot.spawn('medkit', 0.35, 7.85);
+        this.loot.spawn('ammo', 1.35, 7.55);
+        this.loot.spawn('medkit', 2.25, 7.95);
+        this.player.pitch = -0.2;
+        this.hud.show(true);
+      }
+      if (s === 'bars' || s === 'lowhp' || s === 'drops' || s === 'boss') this._pushHud();
     }
     setTimeout(() => { window.__dustline.shotReady = true; }, 400);
   }
@@ -553,7 +612,11 @@ export class Game {
         if (!e) return 0;
         return e.applyDamage(9999);
       },
-      god: () => { self.player.invuln = 9999; }
+      god: () => { self.player.invuln = 9999; },
+      spawnLoot: (kind, x, z) => self.loot.spawn(kind || 'medkit', x ?? self.player.position.x, z ?? self.player.position.z),
+      lootCount: () => self.loot.items.length,
+      lootKinds: () => self.loot.items.map((i) => i.kind),
+      setHp: (n) => { self.player.hp = Math.max(0, Math.min(self.player.maxHp, n)); return self.player.hp; }
     };
   }
 }

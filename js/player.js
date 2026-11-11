@@ -55,7 +55,11 @@ export class Player {
     return taken;
   }
 
-  heal(n) { this.hp = Math.min(this.maxHp, this.hp + n); }
+  heal(n) {
+    const before = this.hp;
+    this.hp = Math.min(this.maxHp, this.hp + n);
+    return this.hp - before;
+  }
 
   update(dt) {
     if (!this.alive) return { moving: 0 };
