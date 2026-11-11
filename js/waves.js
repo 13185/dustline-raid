@@ -4,7 +4,7 @@ export const WAVES = [
   {
     id: 1, name: '货栈警戒',
     spawns: [{ type: 'rusher', count: 4, gap: 1.1 }],
-    reward: { title: '缴获武器', items: [{ id: 'gun_smg', name: '沙暴冲锋枪', desc: '射速极快，适合清理蜂拥而来的面罩兵。' }] }
+    reward: { title: '缴获武器', items: [{ id: 'gun_smg', name: '沙暴冲锋枪', desc: '射速极快，适合清理蜂拥而来的扑咬者。' }] }
   },
   {
     id: 2, name: '两侧夹击',
@@ -34,11 +34,11 @@ export const WAVES = [
     reward: { title: '爆破许可', items: [{ id: 'nades', name: '破片手雷 x3', desc: '按 G 投掷。落地有预警圈，注意别炸到自己。' }] }
   },
   {
-    id: 5, name: '督战降临',
+    id: 5, name: '钉板降临',
     boss: 'midboss',
     spawns: [{ type: 'rusher', count: 3, gap: 1.6 }, { type: 'rifle', count: 2, gap: 2.0 }],
     reward: {
-      title: '督战缴获',
+      title: '钉板缴获',
       items: [
         { id: 'other_gun', name: '补齐全套枪械', desc: '获得你还没选的那把主武器，并补充两枚手雷。' },
         { id: 'vest', name: '防爆背心', desc: '永久减伤 25%，并立刻回满生命。' }
@@ -72,7 +72,7 @@ export const WAVES = [
     reward: { title: '最后整备', items: [{ id: 'fullkit', name: '全副武装', desc: '回满生命与弹药，手雷补到 3 枚，护甲再加一层。' }] }
   },
   {
-    id: 8, name: '砂喉重甲',
+    id: 8, name: '砂喉尸甲',
     boss: 'finalboss',
     spawns: [{ type: 'rusher', count: 6, gap: 4.5 }, { type: 'rifle', count: 3, gap: 6.0 }],
     reward: null

@@ -77,7 +77,7 @@ export async function loadGameModels(onProgress) {
   const loader = new GLTFLoader();
   onProgress?.(0.15, '装箱械模型');
   const viewG = await loadOne(loader, './models/viewmodels.glb');
-  onProgress?.(0.5, '装箱匪模型');
+  onProgress?.(0.5, '装丧尸模型');
   const charG = await loadOne(loader, './models/characters.glb');
   onProgress?.(0.78, '装货栈道具');
   let propG = null;
@@ -129,7 +129,7 @@ export function instantiateCharacter(type, catalog) {
       const srcMats = Array.isArray(o.material) ? o.material : [o.material];
       const cloned = srcMats.map((m) => {
         const c = m.clone();
-        if (/Jacket|Pants|Vest|Knit|Skin|Coat/i.test(c.name || o.name || '')) bodyMats.push(c);
+        if (/Jacket|Pants|Vest|Knit|Skin|Coat|Cloth|Wound|Bile|Sand/i.test(c.name || o.name || '')) bodyMats.push(c);
         return c;
       });
       o.material = Array.isArray(o.material) ? cloned : cloned[0];
@@ -148,8 +148,11 @@ export function instantiateCharacter(type, catalog) {
     kneeL: findJoint('_JKneeL'),
     kneeR: findJoint('_JKneeR'),
     shL: findJoint('_JShL'),
-    shR: findJoint('_JShR')
+    shR: findJoint('_JShR'),
+    spine: findJoint('_JSpine'),
+    head: findJoint('_JHead')
   };
+  root.userData.headTop = findJoint('_HeadTop');
   return root;
 }
 

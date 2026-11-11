@@ -24,12 +24,12 @@ function makeEnemyHealthBar() {
 }
 
 export const ENEMY_DEFS = {
-  rusher: { name: '面罩突袭兵', hp: 48, speed: 3.7, damage: 12, range: 1.55, interval: 0.7, score: 80, kind: 'melee' },
-  rifle: { name: '钢盔火枪手', hp: 70, speed: 2.25, damage: 9, range: 16, interval: 0.95, score: 110, kind: 'gun' },
-  shotgun: { name: '短管清场手', hp: 88, speed: 2.7, damage: 18, range: 6.5, interval: 1.25, score: 130, kind: 'gun' },
-  grenadier: { name: '投弹手', hp: 76, speed: 2.05, damage: 28, range: 17, interval: 2.6, score: 150, kind: 'nade' },
-  midboss: { name: '铁罩督战', hp: 560, speed: 2.35, damage: 16, range: 14, interval: 0.85, score: 900, kind: 'boss', scale: 1.38 },
-  finalboss: { name: '砂喉重甲', hp: 1180, speed: 1.85, damage: 18, range: 16, interval: 0.7, score: 2000, kind: 'boss', scale: 1.72 }
+  rusher: { name: '腐衣扑咬者', hp: 48, speed: 3.7, damage: 12, range: 1.55, interval: 0.7, score: 80, kind: 'melee' },
+  rifle: { name: '锈枪丧尸', hp: 70, speed: 2.25, damage: 9, range: 16, interval: 0.95, score: 110, kind: 'gun' },
+  shotgun: { name: '裂颚清场尸', hp: 88, speed: 2.7, damage: 18, range: 6.5, interval: 1.25, score: 130, kind: 'gun' },
+  grenadier: { name: '胀袋投掷尸', hp: 76, speed: 2.05, damage: 28, range: 17, interval: 2.6, score: 150, kind: 'nade' },
+  midboss: { name: '钉板督尸', hp: 560, speed: 2.35, damage: 16, range: 14, interval: 0.85, score: 900, kind: 'boss', scale: 1.38 },
+  finalboss: { name: '砂喉尸甲', hp: 1180, speed: 1.85, damage: 18, range: 16, interval: 0.7, score: 2000, kind: 'boss', scale: 1.72 }
 };
 
 export class Enemy {
@@ -98,7 +98,13 @@ export class Enemy {
     const dist = this.root.position.distanceTo(player.position);
     this.hpBar.visible = !!(this.wasHit || dist < 30);
     if (!this.hpBar.visible) return;
-    this.hpBar.position.set(this.root.position.x, this.root.position.y + this.height + 0.36, this.root.position.z);
+    const tip = this.root.userData.headTop;
+    if (tip) {
+      tip.getWorldPosition(this._barPos || (this._barPos = new THREE.Vector3()));
+      this.hpBar.position.set(this._barPos.x, this._barPos.y + 0.20, this._barPos.z);
+    } else {
+      this.hpBar.position.set(this.root.position.x, this.root.position.y + this.height + 0.36, this.root.position.z);
+    }
     this.hpBar.quaternion.copy(camera.quaternion);
     const pct = Math.max(0, this.hp / this.maxHp);
     const fill = this.hpBar.userData.fill;
@@ -127,6 +133,7 @@ export class Enemy {
       if (k >= 1) this.state = 'chase';
       return false;
     }
+    if (this.hold) return false;
 
     const pp = player.position;
     const me = this.root.position;
@@ -164,14 +171,30 @@ export class Enemy {
     const amp = THREE.MathUtils.clamp(spd / 3.4, 0.12, 1);
     const s = Math.sin(this.walkT);
     const c = Math.cos(this.walkT);
-    this.root.position.y = Math.abs(s) * 0.045 * amp;
+    const isRusher = this.type === 'rusher';
+    this.root.position.y = Math.abs(s) * (isRusher ? 0.024 : 0.038) * amp;
     const j = this.root.userData.joints || {};
-    if (j.hipL) j.hipL.rotation.x = s * 0.62 * amp;
-    if (j.hipR) j.hipR.rotation.x = -s * 0.62 * amp;
-    if (j.kneeL) j.kneeL.rotation.x = Math.max(0, -s) * 0.55 * amp;
-    if (j.kneeR) j.kneeR.rotation.x = Math.max(0, s) * 0.55 * amp;
-    if (j.shL) j.shL.rotation.x = -s * 0.38 * amp;
-    if (j.shR) j.shR.rotation.x = s * 0.38 * amp;
+    if (!this._jointRest) {
+      this._jointRest = {};
+      for (const [k, node] of Object.entries(j)) {
+        if (node) this._jointRest[k] = { x: node.rotation.x, y: node.rotation.y, z: node.rotation.z };
+      }
+    }
+    const rest = this._jointRest;
+    const drag = isRusher ? 0.42 : 1;
+    if (j.hipL) j.hipL.rotation.x = (rest.hipL?.x || 0) + s * 0.52 * amp * drag;
+    if (j.hipR) j.hipR.rotation.x = (rest.hipR?.x || 0) + -s * 0.70 * amp;
+    if (j.kneeL) j.kneeL.rotation.x = (rest.kneeL?.x || 0) + Math.max(0, -s) * (isRusher ? 0.22 : 0.5) * amp;
+    if (j.kneeR) j.kneeR.rotation.x = (rest.kneeR?.x || 0) + Math.max(0, s) * 0.52 * amp;
+    if (j.shL) j.shL.rotation.x = (rest.shL?.x || 0) + -s * (isRusher ? 0.18 : 0.26) * amp;
+    if (j.shR) j.shR.rotation.x = (rest.shR?.x || 0) + s * (isRusher ? 0.14 : 0.26) * amp;
+    if (j.head && rest.head) {
+      j.head.rotation.x = rest.head.x + c * 0.07;
+      j.head.rotation.z = rest.head.z + s * 0.09;
+    }
+    if (j.spine && rest.spine) {
+      j.spine.rotation.z = rest.spine.z + s * 0.03;
+    }
 
     if (this.type === 'midboss' && this.cd <= 0 && dist < 11 && Math.random() < 0.35) {
       this.telegraph = 0.7;

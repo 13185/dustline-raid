@@ -222,7 +222,7 @@ export class Game {
     if (!w) { this.showResults(true); return; }
     this.waves.begin(this.player);
     this.stats.waveReached = w.id;
-    const boss = w.boss === 'midboss' ? '中场头目 · 铁罩督战' : w.boss === 'finalboss' ? '最终头目 · 砂喉重甲' : null;
+    const boss = w.boss === 'midboss' ? '中场头目 · 钉板督尸' : w.boss === 'finalboss' ? '最终头目 · 砂喉尸甲' : null;
     this.hud.banner(boss || `第 ${w.id} 波  ${w.name}`, !!boss);
     if (boss) this.audio.boss();
     this.objective = boss ? `击败${boss.split(' · ')[1]}` : `清剿本波敌军`;
@@ -508,14 +508,14 @@ export class Game {
         ['title', 'boot', 'upgrade', 'pause', 'dead', 'results', 'clickResume'].forEach((id) => $(id)?.classList.add('hidden'));
         [['rusher', 1.4, 6.8], ['rifle', -1.2, 3.4], ['shotgun', 3.6, 5.2], ['grenadier', -3.6, 7.4]].forEach(([tp, x, z]) => {
           const e = this.combat.spawn(tp, x, z);
-          e.state = 'chase';
+          e.state = 'chase'; e.hold = true;
           e.wasHit = true;
           e.applyDamage(e.maxHp * 0.35);
           e.root.rotation.y = Math.atan2(7.8 - x, 11.6 - z);
         });
       }
     }
-    if (s === 'gun' || s === 'ads' || s === 'wave' || s === 'boss' || s === 'upgrade' || s === 'bars' || s === 'lowhp' || s === 'drops') {
+    if (s === 'gun' || s === 'ads' || s === 'wave' || s === 'boss' || s === 'upgrade' || s === 'bars' || s === 'lowhp' || s === 'drops' || s === 'rusher' || s === 'gunner' || s === 'bile' || s === 'finalboss' || s === 'zombies') {
       this.startRun();
       this.player.position.set(1.4, 0, 10.2);
       this.player.yaw = -0.08;
@@ -530,16 +530,16 @@ export class Game {
         this.combat.clearAll();
         this.waves.queue = [];
         this.waves.doneSpawning = true;
-        [['rusher', -2.2, 3.4], ['rifle', 1.6, 2.1], ['shotgun', -0.2, -1.4], ['grenadier', 3.8, -2.6]].forEach(([tp, x, z]) => this.combat.spawn(tp, x, z));
+        [['rusher', -2.2, 3.4], ['rifle', 1.6, 2.1], ['shotgun', -0.2, -1.4], ['grenadier', 3.8, -2.6]].forEach(([tp, x, z]) => { const e = this.combat.spawn(tp, x, z); e.state = 'chase'; e.hold = true; });
         this.hud.banner('第 1 波  货栈警戒', false);
       }
       if (s === 'boss') {
         this.combat.clearAll();
         this.waves.queue = [];
         this.waves.doneSpawning = true;
-        this.combat.spawn('midboss', 0.8, 4.6);
-        this.combat.spawn('rusher', -2.6, 6.0);
-        this.hud.banner('中场头目 · 铁罩督战', true);
+        const mb = this.combat.spawn('midboss', 0.8, 4.6); mb.state = 'chase'; mb.hold = true;
+        const ru = this.combat.spawn('rusher', -2.6, 6.0); ru.state = 'chase'; ru.hold = true;
+        this.hud.banner('中场头目 · 钉板督尸', true);
       }
       if (s === 'upgrade') {
         this.openUpgrade(WAVES[2]);
@@ -550,7 +550,7 @@ export class Game {
         this.waves.doneSpawning = true;
         [['rusher', -2.0, 4.2], ['rifle', 1.4, 3.2], ['shotgun', -0.2, 1.6]].forEach(([tp, x, z]) => {
           const e = this.combat.spawn(tp, x, z);
-          e.state = 'chase';
+          e.state = 'chase'; e.hold = true;
           e.applyDamage(e.maxHp * 0.42);
         });
         this.hud.show(true);
@@ -571,7 +571,75 @@ export class Game {
         this.player.pitch = -0.2;
         this.hud.show(true);
       }
-      if (s === 'bars' || s === 'lowhp' || s === 'drops' || s === 'boss') this._pushHud();
+      if (s === 'zombies') {
+        this.combat.clearAll();
+        this.waves.queue = [];
+        this.waves.doneSpawning = true;
+        this.waves.cleared = true;
+        [['rusher', -2.6, 6.2], ['rifle', -0.6, 5.2], ['shotgun', 1.6, 5.6], ['grenadier', 3.4, 6.6]].forEach(([tp, x, z]) => {
+          const e = this.combat.spawn(tp, x, z);
+          e.state = 'chase'; e.hold = true;
+          e.root.rotation.y = Math.atan2(1.2 - x, 10.4 - z);
+        });
+        this.player.position.set(0.5, 0, 10.6);
+        this.player.yaw = 0.02;
+        this.player.pitch = -0.12;
+        this.hud.show(true);
+      }
+      if (s === 'rusher') {
+        this.combat.clearAll();
+        this.waves.queue = [];
+        this.waves.doneSpawning = true;
+        this.waves.cleared = true;
+        const e = this.combat.spawn('rusher', 1.25, 7.15);
+        e.state = 'chase'; e.hold = true;
+        e.root.rotation.y = 0;
+        this.player.position.set(1.35, 0, 9.55);
+        this.player.yaw = 0;
+        this.player.pitch = -0.12;
+        this.hud.show(true);
+      }
+      if (s === 'gunner') {
+        this.combat.clearAll();
+        this.waves.queue = [];
+        this.waves.doneSpawning = true;
+        this.waves.cleared = true;
+        const e = this.combat.spawn('rifle', 1.2, 6.85);
+        e.state = 'chase'; e.hold = true;
+        e.root.rotation.y = 0;
+        this.player.position.set(1.3, 0, 9.4);
+        this.player.yaw = 0;
+        this.player.pitch = -0.1;
+        this.hud.show(true);
+      }
+      if (s === 'bile') {
+        this.combat.clearAll();
+        this.waves.queue = [];
+        this.waves.doneSpawning = true;
+        this.waves.cleared = true;
+        const e = this.combat.spawn('grenadier', 1.25, 6.7);
+        e.state = 'chase'; e.hold = true;
+        e.root.rotation.y = 0;
+        this.player.position.set(1.3, 0, 9.35);
+        this.player.yaw = 0;
+        this.player.pitch = -0.16;
+        this.hud.show(true);
+      }
+      if (s === 'finalboss') {
+        this.combat.clearAll();
+        this.waves.queue = [];
+        this.waves.doneSpawning = true;
+        this.waves.cleared = true;
+        const e = this.combat.spawn('finalboss', 0.7, 5.4);
+        e.state = 'chase'; e.hold = true;
+        e.root.rotation.y = 0;
+        this.player.position.set(1.1, 0, 10.4);
+        this.player.yaw = -0.04;
+        this.player.pitch = -0.18;
+        this.hud.banner('最终头目 · 砂喉尸甲', true);
+        this.hud.show(true);
+      }
+      if (s === 'bars' || s === 'lowhp' || s === 'drops' || s === 'boss' || s === 'zombies' || s === 'rusher' || s === 'gunner' || s === 'bile' || s === 'finalboss') this._pushHud();
     }
     setTimeout(() => { window.__dustline.shotReady = true; }, 400);
   }

@@ -16,7 +16,7 @@ python3 -m http.server 4188
 
 然后打开 http://localhost:4188/
 
-截图机位：`/?shot=title|yard|gun|ads|wave|boss|upgrade|bars|lowhp|drops`
+截图机位：`/?shot=title|yard|gun|ads|wave|boss|upgrade|bars|lowhp|drops|zombies|rusher|gunner|bile|finalboss`
 
 画质：`/?quality=low|medium|high`
 
@@ -54,12 +54,12 @@ python3 -m http.server 4188
 2. 两侧夹击 → 包扎或弹药
 3. 巷口清场 → 在 **尘脊步枪** 与 **巷口霰弹** 中选一把
 4. 交叉火力 → 破片手雷
-5. 中场头目 **铁罩督战**
+5. 中场头目 **钉板督尸**
 6. 沙暴加码 → 伤害或射速强化
 7. 人潮决堤 → 全副武装
-8. 最终头目 **砂喉重甲**
+8. 最终头目 **砂喉尸甲**
 
-敌军：面罩突袭兵、钢盔火枪手、短管清场手、投弹手（参考民兵 / 土匪装束的原创造型）。
+敌军（沙市货栈尸潮，原创造型）：腐衣扑咬者、锈枪丧尸、裂颚清场尸、胀袋投掷尸；中场头目钉板督尸，最终头目砂喉尸甲。
 
 ## 素材许可
 

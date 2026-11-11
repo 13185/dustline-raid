@@ -2,7 +2,7 @@
 
 作者：Jack · 禁止转载
 
-`build_assets.py` 在 Blender 4.2+ 后台生成全部原创枪械、土匪角色与货栈道具，并导出 `../models/*.glb`。
+`build_assets.py` 在 Blender 4.2+ 后台生成全部原创枪械、丧尸角色与货栈道具，并导出 `../models/*.glb`。
 
 ```bash
 blender --background --python art/build_assets.py

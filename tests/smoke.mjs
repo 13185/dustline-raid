@@ -141,7 +141,9 @@ function ok(cond, msg) {
       enemy: tris(window.__target && window.__target.root),
       hasHands: pn.some((n) => /FPPalm|FPHand|FPFinger/.test(n)),
       hasScope: rn.some((n) => /ScopeHood|ScopeReticle|ScopeLens|ScopeGlass/.test(n)),
-      hasJoints: en.some((n) => /_JHipL$|_JKneeL$/.test(n))
+      hasJoints: en.some((n) => /_JHipL$|_JKneeL$/.test(n)),
+      hasJaw: en.some((n) => /Jaw|Tooth/.test(n)),
+      hasSpine: en.some((n) => /_JSpine$/.test(n))
     };
   });
   ok(meshInfo.fromGltf, 'pistol comes from glTF');
@@ -151,6 +153,43 @@ function ok(cond, msg) {
   ok(meshInfo.hasHands, 'viewmodel includes first-person hands');
   ok(meshInfo.hasScope, 'rifle includes dedicated optic parts');
   ok(meshInfo.hasJoints, 'enemy includes walk joints');
+  ok(meshInfo.hasJaw, 'rusher has hanging jaw/teeth');
+  ok(meshInfo.hasSpine, 'rusher has hunched spine joint');
+
+  const parts = await page.evaluate(() => {
+    const g = window.__game;
+    const namesOf = (type) => {
+      const e = g.combat.spawn(type, 4, 4);
+      const list = [];
+      e.root.traverse((o) => { if (o.name) list.push(o.name); });
+      const hunched = !!(e.root.userData.joints && e.root.userData.joints.spine);
+      g.combat.disposeEnemy(e);
+      g.combat.enemies = g.combat.enemies.filter((x) => x !== e);
+      return { list, hunched, name: e.def.name };
+    };
+    return {
+      rusher: namesOf('rusher'),
+      rifle: namesOf('rifle'),
+      shotgun: namesOf('shotgun'),
+      grenadier: namesOf('grenadier'),
+      midboss: namesOf('midboss'),
+      finalboss: namesOf('finalboss')
+    };
+  });
+  ok(parts.rusher.name === '腐衣扑咬者', 'rusher display name ' + parts.rusher.name);
+  ok(parts.rifle.name === '锈枪丧尸', 'rifle display name ' + parts.rifle.name);
+  ok(parts.shotgun.name === '裂颚清场尸', 'shotgun display name ' + parts.shotgun.name);
+  ok(parts.grenadier.name === '胀袋投掷尸', 'grenadier display name ' + parts.grenadier.name);
+  ok(parts.midboss.name === '钉板督尸', 'midboss display name ' + parts.midboss.name);
+  ok(parts.finalboss.name === '砂喉尸甲', 'finalboss display name ' + parts.finalboss.name);
+  ok(parts.rusher.hunched && parts.rusher.list.some((n) => /Jaw|Tooth/.test(n)), 'rusher hunched + jaw');
+  ok(parts.rusher.list.some((n) => /Flap|Cavity|Rib/.test(n)), 'rusher torn cloth / cavity');
+  ok(parts.rifle.list.some((n) => /Helm/.test(n)) && parts.rifle.list.some((n) => /Eye/.test(n)), 'gunner helmet + eyes');
+  ok(parts.rifle.list.some((n) => /TP_Rifle/.test(n)), 'gunner rusty rifle');
+  ok(parts.shotgun.list.some((n) => /JawL|JawR/.test(n)), 'shotgunner split jaw');
+  ok(parts.grenadier.list.some((n) => /BileSac/.test(n)), 'thrower bile sac');
+  ok(parts.midboss.list.some((n) => /Nail|Plate/.test(n)), 'midboss nail plates');
+  ok(parts.finalboss.list.some((n) => /SandPlate|Throat/.test(n)), 'final boss sand plates / throat');
 
   await page.evaluate(() => window.__dustline.forceUpgrade('gun_smg'));
   const owned = await page.evaluate(() => window.__dustline.state().owned);
@@ -339,7 +378,7 @@ function ok(cond, msg) {
   ok(!extra.shownDead, 'hp bar hidden on death');
   ok(extra.hitW < extra.fullW - 0.05, 'hp fill shrinks after damage ' + extra.hitW + ' < ' + extra.fullW);
   ok(extra.bossBarOn, 'boss bar visible');
-  ok(extra.bossName.includes('铁罩督战'), 'boss bar name ' + extra.bossName);
+  ok(extra.bossName.includes('钉板督尸'), 'boss bar name ' + extra.bossName);
   ok(extra.lowOn && extra.lowClass, 'low-HP warning + red HUD');
   ok(extra.warnText.includes('血量过低'), 'low-HP text');
   ok(extra.hurtOp > 0.1, 'hurt vignette visible');

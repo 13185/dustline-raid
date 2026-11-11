@@ -108,11 +108,14 @@ export class World {
     }
     this.scene.add(sun);
     this.sun = sun;
-    this.scene.add(new THREE.HemisphereLight(0xe8eef4, 0x6a5840, 1.08));
-    this.scene.add(new THREE.AmbientLight(0x4a4034, 0.42));
-    const fill = new THREE.DirectionalLight(0xc0d4e8, 0.9);
+    this.scene.add(new THREE.HemisphereLight(0xe8eef4, 0x6a5840, 1.16));
+    this.scene.add(new THREE.AmbientLight(0x4a4034, 0.48));
+    const fill = new THREE.DirectionalLight(0xc8d8ec, 1.05);
     fill.position.set(30, 22, -12);
     this.scene.add(fill);
+    const rim = new THREE.DirectionalLight(0xd6e2f0, 0.52);
+    rim.position.set(16, 12, -30);
+    this.scene.add(rim);
     const bay = new THREE.PointLight(0xff9a4a, 2.1, 22, 1.6);
     bay.position.set(0, 4.2, -16);
     this.scene.add(bay);
