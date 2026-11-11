@@ -221,6 +221,7 @@ export class Enemy {
     if (this.cd <= 0) {
       if (this.def.kind === 'melee' && dist < this.def.range) {
         player.hurt(this.def.damage);
+        combat.audio.vocal?.(this.type, 'attack', me.x, 1.2, me.z);
         this.cd = this.def.interval;
       } else if (this.def.kind === 'gun' && dist < this.def.range + 4) {
         combat.enemyShoot(this, player);
@@ -278,13 +279,14 @@ export class Combat {
     const e = new Enemy(type, x, z, this.scene, this.catalog);
     this.enemies.push(e);
     this.audio.spawn();
+    this.audio.vocal?.(type, 'spawn', x, 1.25, z);
     return e;
   }
 
   living() { return this.enemies.filter((e) => e.alive); }
 
   hitscan(origin, dir, spread, pellets, damage) {
-    let hits = 0, score = 0, killed = [];
+    let hits = 0, score = 0, killed = [], headshots = 0, walls = 0;
     for (let p = 0; p < pellets; p++) {
       const d = dir.clone();
       d.x += (Math.random() - 0.5) * spread * 2;
@@ -304,6 +306,7 @@ export class Combat {
       }
       const wh = this.world.hitWorld(origin, d, bestDist);
       if (wh && wh.distance < bestDist) {
+        walls += 1;
         this.spark(wh.point);
         this.impact(wh.point, wh.normal || (wh.face && wh.face.normal) || new THREE.Vector3(0, 1, 0), false);
         this.tracer(origin, d, wh.distance);
@@ -311,6 +314,7 @@ export class Combat {
       }
       if (best) {
         const head = origin.y + d.y * bestDist > best.root.position.y + best.height * 0.78;
+        if (head) headshots += 1;
         const dmg = damage * (head ? 1.45 : 1);
         const sc = best.applyDamage(dmg);
         score += sc;
@@ -322,12 +326,14 @@ export class Combat {
         this.tracer(origin, d, bestDist);
       }
     }
-    return { hits, score, killed };
+    return { hits, score, killed, headshots, walls };
   }
 
   enemyShoot(e, player) {
     const origin = e.root.position.clone();
     origin.y += e.height * 0.72;
+    this.audio.enemyGun?.(e.type === 'shotgun' ? 'shotgun' : 'rifle', origin.x, origin.y, origin.z);
+    if (Math.random() < 0.35) this.audio.vocal?.(e.type, 'attack', origin.x, origin.y, origin.z);
     const target = player.position.clone();
     target.y += player.crouching ? 0.9 : 1.45;
     target.x += (Math.random() - 0.5) * 1.4;
@@ -458,9 +464,13 @@ export class Combat {
       const e = this.enemies[i];
       if (e.justDied) {
         e.justDied = false;
+        this.audio.vocal?.(e.type, 'death', e.pos().x, 1.2, e.pos().z);
         this.loot?.spawnFrom(e, player);
       }
       const gone = e.update(dt, player, this.world, this);
+      if (!gone && e.alive && e.age > 1.2 && Math.random() < dt * 0.05) {
+        this.audio.vocal?.(e.type, 'idle', e.pos().x, 1.2, e.pos().z);
+      }
       e.updateHealthBar(player.camera, player);
       if (gone) {
         this.disposeEnemy(e);

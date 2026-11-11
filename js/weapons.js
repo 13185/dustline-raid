@@ -60,6 +60,10 @@ export class Loadout {
       this.state[id] = { mag: d.mag, reserve: d.reserve };
     }
     this.reloading = 0;
+    this.reloadKind = null;
+    this.reloadStartMag = 0;
+    this._justShelled = false;
+    this.onReloadCancel = null;
     this.cooldown = 0;
     this.ads = 0;
     this.wantAds = false;
@@ -96,8 +100,9 @@ export class Loadout {
   }
 
   select(id) {
-    if (!this.owned.includes(id) || this.reloading > 0) return false;
+    if (!this.owned.includes(id)) return false;
     if (id === this.current) return false;
+    if (this.reloading > 0) this.cancelReload();
     this.current = id;
     for (const k of Object.keys(this.models)) this.models[k].visible = k === id;
     return true;
@@ -112,25 +117,79 @@ export class Loadout {
   startReload() {
     const a = this.ammo(); const d = this.def();
     if (this.reloading > 0 || a.mag >= d.mag || a.reserve <= 0) return false;
-    this.reloading = d.reload;
+    this.reloadStartMag = a.mag;
+    if (d.id === 'shotgun') {
+      this.reloadKind = 'shell';
+      this.reloading = d.reload / Math.max(1, d.mag);
+    } else {
+      this.reloadKind = 'mag';
+      this.reloading = d.reload;
+    }
     return true;
+  }
+
+  reloadDuration() {
+    const d = this.def();
+    return this.reloadKind === 'shell' ? d.reload / Math.max(1, d.mag) : d.reload;
+  }
+
+  reloadProgress() {
+    if (this.reloading <= 0) return 0;
+    const d = this.def();
+    if (this.reloadKind === 'shell') {
+      const shell = d.reload / Math.max(1, d.mag);
+      const start = this.reloadStartMag || 0;
+      const need = Math.max(1, d.mag - start);
+      const done = this.ammo().mag - start;
+      return Math.min(1, (done + (1 - this.reloading / shell)) / need);
+    }
+    return Math.min(1, 1 - this.reloading / d.reload);
+  }
+
+  cancelReload() {
+    if (this.reloading <= 0 && !this.reloadKind) return;
+    this.reloading = 0;
+    this.reloadKind = null;
+    this._justShelled = false;
+    this.onReloadCancel?.();
   }
 
   finishReload() {
     const a = this.ammo(); const d = this.def();
+    if (this.reloadKind === 'shell') {
+      if (a.reserve > 0 && a.mag < d.mag) { a.mag += 1; a.reserve -= 1; }
+      if (a.reserve > 0 && a.mag < d.mag) {
+        this.reloading = d.reload / Math.max(1, d.mag);
+        return true;
+      }
+      this.reloadKind = null;
+      return false;
+    }
     const need = d.mag - a.mag;
     const take = Math.min(need, a.reserve);
     a.mag += take; a.reserve -= take;
+    this.reloadKind = null;
+    return false;
   }
 
   flashGrenade() { this.nadeFlash = 0.38; }
 
-  canFire() { return this.reloading <= 0 && this.cooldown <= 0 && this.ammo().mag > 0; }
+  canFire() {
+    if (this.cooldown > 0 || this.ammo().mag <= 0) return false;
+    if (this.reloading > 0 && this.reloadKind !== 'shell') return false;
+    return true;
+  }
 
   fire() {
-    if (!this.canFire()) {
-      if (this.ammo().mag <= 0) return this.startReload() ? 'reload' : 'empty';
-      return null;
+    if (this.reloading > 0) {
+      if (this.reloadKind === 'shell' && this.ammo().mag > 0 && this.cooldown <= 0) this.cancelReload();
+      else return null;
+    }
+    if (this.cooldown > 0) return null;
+    if (this.ammo().mag <= 0) {
+      this.cooldown = 0.2;
+      if (this.startReload()) return 'reload';
+      return 'empty';
     }
     const d = this.def();
     this.ammo().mag -= 1;
@@ -159,7 +218,10 @@ export class Loadout {
     if (this.cooldown > 0) this.cooldown -= dt;
     if (this.reloading > 0) {
       this.reloading -= dt;
-      if (this.reloading <= 0) { this.reloading = 0; this.finishReload(); }
+      if (this.reloading <= 0) {
+        this.reloading = 0;
+        this._justShelled = !!this.finishReload();
+      }
     }
     this.recoilP = THREE.MathUtils.damp(this.recoilP, 0, 8, dt);
     this.recoilY = THREE.MathUtils.damp(this.recoilY, 0, 8, dt);
@@ -205,7 +267,14 @@ export class Loadout {
     return added;
   }
 
+  takeReloadPulse() {
+    if (!this._justShelled) return false;
+    this._justShelled = false;
+    return true;
+  }
+
   refill() {
+    this.cancelReload();
     for (const id of Object.keys(WEAPON_DEFS)) {
       const d = WEAPON_DEFS[id];
       this.state[id].mag = d.mag;

@@ -83,6 +83,7 @@ export class Game {
     this.gunScene.environment = this.scene.environment;
     this.player = new Player(this.camera, this.world, this.input);
     this.loadout = new Loadout(this.gunScene, this.camera, this.assets.viewmodels);
+    this.loadout.onReloadCancel = () => this.audio.cancelReload();
     this.loot = new LootField(this.scene, this.audio);
     this.combat = new Combat(this.scene, this.world, this.audio, this.assets.characters, this.loot);
     this.waves = new WaveDirector(this.combat, this.world);
@@ -130,6 +131,27 @@ export class Game {
     };
     $('chkMute').onchange = () => syncMute($('chkMute').checked);
     $('chkMute2').onchange = () => syncMute($('chkMute2').checked);
+    const syncVol = (key, raw, src) => {
+      this.audio.resume();
+      const v = Math.max(0, Math.min(100, +raw)) / 100;
+      this.audio.setVolumes({ [key]: v });
+      const map = { master: ['volMaster', 'volMaster2'], music: ['volMusic', 'volMusic2'], sfx: ['volSfx', 'volSfx2'] };
+      for (const id of map[key]) {
+        const el = $(id);
+        if (el && el !== src) el.value = String(Math.round(v * 100));
+      }
+    };
+    const bindVol = (id, key) => {
+      const el = $(id);
+      if (!el) return;
+      el.addEventListener('input', () => syncVol(key, el.value, el));
+    };
+    bindVol('volMaster', 'master'); bindVol('volMaster2', 'master');
+    bindVol('volMusic', 'music'); bindVol('volMusic2', 'music');
+    bindVol('volSfx', 'sfx'); bindVol('volSfx2', 'sfx');
+    const unlock = () => this.audio.resume();
+    addEventListener('pointerdown', unlock);
+    addEventListener('keydown', unlock);
     const applyQ = (v) => {
       this.setQuality(v);
       $('selQuality').value = v;
@@ -231,7 +253,7 @@ export class Game {
   _keydown(e) {
     if (this.mode === 'play') {
       if (e.code === 'Escape') { this.pause(); return; }
-      if (e.code === 'KeyR') { if (this.loadout.startReload()) this.audio.reload(); }
+      if (e.code === 'KeyR') { if (this.loadout.startReload()) this.audio.reload(this.loadout.def().id, this.loadout.reloadDuration()); }
       if (e.code === 'KeyG') this._throwNade();
       if (e.code === 'Digit1') this.loadout.select(this.loadout.owned[0]);
       if (e.code === 'Digit2') this.loadout.select(this.loadout.owned[1]);
@@ -278,6 +300,8 @@ export class Game {
     if (this.loadout.grenades <= 0 || this.mode !== 'play') return;
     this.loadout.grenades -= 1;
     this.loadout.flashGrenade();
+    this.audio.nadePin();
+    this.audio.nadeThrow();
     const origin = this.camera.position.clone();
     const dir = new THREE.Vector3();
     this.camera.getWorldDirection(dir);
@@ -370,7 +394,8 @@ export class Game {
 
   _tryFire() {
     const r = this.loadout.fire();
-    if (r === 'reload') { this.audio.reload(); return; }
+    if (r === 'reload') { this.audio.reload(this.loadout.def().id, this.loadout.reloadDuration()); return; }
+    if (r === 'empty') { this.audio.dry(); return; }
     if (r !== 'shot') return;
     this.loadout.cooldown /= this.player.rpmMul;
     const d = this.loadout.def();
@@ -384,7 +409,14 @@ export class Game {
     this.stats.hits += hs.hits;
     this.stats.score += hs.score;
     this.stats.kills += hs.killed.length;
-    if (hs.hits) { this.hud.hitmarker(); this.audio.hit(); }
+    if (hs.hits) {
+      this.hud.hitmarker();
+      if (hs.headshots) this.audio.headshot();
+      else this.audio.flesh();
+    } else if (hs.walls) this.audio.ricochet();
+    if (this.loadout.ammo().mag === 0 && this.loadout.startReload()) {
+      this.audio.reload(this.loadout.def().id, this.loadout.reloadDuration());
+    }
     const right = new THREE.Vector3(1, 0, 0).applyQuaternion(this.camera.quaternion);
     const up = new THREE.Vector3(0, 1, 0).applyQuaternion(this.camera.quaternion);
     const fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(this.camera.quaternion);
@@ -407,6 +439,7 @@ export class Game {
     } else if (this.mode === 'upgrade' || this.mode === 'pause' || this.mode === 'dead' || this.mode === 'results') {
       this.loadout.update(dt, 0, false);
     }
+    this._tickAudio(dt);
     this.fx.updateSun(this.camera, this.world.sunDir);
     const showGun = this.mode === 'play' || this.mode === 'pause' || this._shotMode === 'gun' || this._shotMode === 'ads';
     this.fx.render(this.scene, this.camera, showGun ? this.gunScene : null);
@@ -432,6 +465,7 @@ export class Game {
     this._moving = st.moving || 0;
     if (st.foot) this.audio.foot();
     this.loadout.update(dt, (st.moving || 0) / 5.2, this.input.adsHeld || !!this.input.keys.MouseRight);
+    if (this.loadout.takeReloadPulse()) this.audio.reloadShell();
     if (this.input.fireHeld) this._tryFire();
     this.combat.update(dt, this.player);
     this.loot.update(dt, this.player, this.loadout, this.hud);
@@ -468,6 +502,9 @@ export class Game {
       hurt: this.player.hurtFlash,
       spread: this.loadout.currentSpread(this._moving > 1.4),
       ads: this.loadout.ads,
+      reloadProgress: this.loadout.reloadProgress(),
+      reloading: this.loadout.reloading > 0,
+      lowAmmo: this.loadout.ammo().mag > 0 && this.loadout.ammo().mag <= Math.max(2, Math.ceil(this.loadout.def().mag * 0.22)),
       boss: (() => {
         const b = this.combat.living().find((e) => e.def.kind === 'boss');
         return b ? { name: b.def.name, hp: b.hp, maxHp: b.maxHp } : null;
@@ -491,7 +528,31 @@ export class Game {
       hurt: this.player.hurtFlash,
       spread: 0.01,
       ads: this.loadout.ads,
+      reloadProgress: this.loadout.reloadProgress(),
+      reloading: this.loadout.reloading > 0,
+      lowAmmo: this.loadout.ammo().mag > 0 && this.loadout.ammo().mag <= Math.max(2, Math.ceil(this.loadout.def().mag * 0.22)),
       boss: b ? { name: b.def.name, hp: b.hp, maxHp: b.maxHp } : null
+    });
+  }
+
+  _tickAudio(dt) {
+    if (!this.audio) return;
+    const cam = this.camera;
+    const fwd = new THREE.Vector3();
+    cam.getWorldDirection(fwd);
+    const up = new THREE.Vector3(0, 1, 0).applyQuaternion(cam.quaternion);
+    const living = this.combat ? this.combat.living() : [];
+    this.audio.update(dt, {
+      mode: this.mode,
+      living: living.length,
+      boss: living.some((e) => e.def.kind === 'boss'),
+      hp: this.player ? this.player.hp : 100,
+      maxHp: this.player ? this.player.maxHp : 100,
+      listener: {
+        x: cam.position.x, y: cam.position.y, z: cam.position.z,
+        fx: fwd.x, fy: fwd.y, fz: fwd.z,
+        ux: up.x, uy: up.y, uz: up.z
+      }
     });
   }
 

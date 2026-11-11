@@ -41,6 +41,11 @@
             </label>
             <label class="chk"><input type="checkbox" id="chkMute" /> 静音</label>
           </div>
+          <div class="vol-col">
+            <label>总音量 <input type="range" id="volMaster" min="0" max="100" value="70" /></label>
+            <label>音乐 <input type="range" id="volMusic" min="0" max="100" value="50" /></label>
+            <label>音效 <input type="range" id="volSfx" min="0" max="100" value="85" /></label>
+          </div>
         </div>
         <div class="help-mini">
           电脑 FPS · 点击开始后锁定鼠标<br />
@@ -79,8 +84,11 @@
         <div class="weapbox">
           <div id="hudWeapon">锈鹰手枪</div>
           <div class="ammo"><b id="hudAmmo">12</b><small id="hudReserve">/ 84</small></div>
+          <div id="lowAmmoHint" class="low-ammo">弹药不足</div>
         </div>
       </div>
+      <div id="reloadHint" class="reload-hint"></div>
+      <div id="reloadBar" class="reload-bar hidden"><span>换弹中</span><i><b id="reloadFill"></b></i></div>
       <div id="waveBanner" class="banner"></div>
       <div id="lowHpWarn">血量过低</div>
       <div id="healPop"></div>
@@ -109,6 +117,11 @@
             </select>
           </label>
           <label class="chk"><input type="checkbox" id="chkMute2" /> 静音</label>
+        </div>
+        <div class="vol-col">
+          <label>总音量 <input type="range" id="volMaster2" min="0" max="100" value="70" /></label>
+          <label>音乐 <input type="range" id="volMusic2" min="0" max="100" value="50" /></label>
+          <label>音效 <input type="range" id="volSfx2" min="0" max="100" value="85" /></label>
         </div>
         <div class="title-actions col">
           <button id="btnResume" class="btn primary">继续突击</button>

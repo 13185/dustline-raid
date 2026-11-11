@@ -23,7 +23,12 @@ export class HUD {
       bossBar: document.getElementById('bossBar'),
       bossName: document.getElementById('bossName'),
       bossFill: document.getElementById('bossFill'),
-      bossHp: document.getElementById('bossHpText')
+      bossHp: document.getElementById('bossHpText'),
+      reloadHint: document.getElementById('reloadHint'),
+      reloadBar: document.getElementById('reloadBar'),
+      reloadFill: document.getElementById('reloadFill'),
+      lowAmmo: document.getElementById('lowAmmoHint'),
+      weapBox: document.querySelector('.weapbox')
     };
     this.bannerT = 0;
     this.toastT = 0;
@@ -109,6 +114,19 @@ export class HUD {
     this.els.weapon.textContent = info.weapon;
     this.els.ammo.textContent = String(info.ammo);
     this.els.reserve.textContent = '/ ' + info.reserve + (info.nades ? `  ·  雷 ${info.nades}` : '');
+    const reloading = !!info.reloading;
+    if (this.els.reloadBar) {
+      this.els.reloadBar.classList.toggle('hidden', !reloading);
+      if (this.els.reloadFill) this.els.reloadFill.style.width = `${Math.round((info.reloadProgress || 0) * 100)}%`;
+    }
+    if (this.els.reloadHint) {
+      let hint = '';
+      if (!reloading && info.ammo === 0 && info.reserve > 0) hint = '按 R 换弹';
+      else if (!reloading && info.ammo === 0 && info.reserve <= 0) hint = '弹药耗尽';
+      this.els.reloadHint.textContent = hint;
+      this.els.reloadHint.classList.toggle('show', !!hint);
+    }
+    if (this.els.weapBox) this.els.weapBox.classList.toggle('low-ammo-on', !!info.lowAmmo && !reloading);
     const spread = 7 + info.spread * 520;
     const ch = this.els.cross.querySelectorAll('.ch');
     ch[0].style.right = spread + 'px';

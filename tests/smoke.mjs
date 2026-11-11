@@ -393,6 +393,82 @@ function ok(cond, msg) {
   await page.close();
 }
 
+
+{
+  const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+  await page.goto(BASE + '/?quality=low&v=audio', { waitUntil: 'domcontentloaded', timeout: 60000 });
+  await waitReady(page);
+  await page.click('#btnStart');
+  await page.waitForFunction(() => window.__dustline.state().mode === 'play');
+  const audio = await page.evaluate(() => {
+    const g = window.__game;
+    const L = g.loadout;
+    L.cancelReload();
+    L.current = 'pistol';
+    L.state.pistol.mag = 3;
+    L.state.pistol.reserve = 20;
+    const started = L.startReload();
+    const blockedDuring = L.fire();
+    const canDuring = L.canFire();
+    L.reloading = Math.max(0.01, L.reloading - 0.35);
+    const progress = L.reloadProgress();
+    L.reloading = 0;
+    L.finishReload();
+    const afterMag = L.state.pistol.mag;
+    const afterRes = L.state.pistol.reserve;
+    const blockedFull = L.startReload();
+    L.state.pistol.mag = 5;
+    L.state.pistol.reserve = 0;
+    const blockedEmptyRes = L.startReload();
+    L.cooldown = 0;
+    L.state.pistol.mag = 0;
+    L.state.pistol.reserve = 0;
+    const emptyFire = L.fire();
+
+    L.unlock('shotgun');
+    L.select('shotgun');
+    L.state.shotgun.mag = 2;
+    L.state.shotgun.reserve = 4;
+    const shellStart = L.startReload();
+    const shellDur = L.reloadDuration();
+    L.reloading = 0;
+    const moreShell = L.finishReload();
+    const shellMag = L.state.shotgun.mag;
+    const shellRes = L.state.shotgun.reserve;
+
+    g.audio.resume();
+    const buses = !!(g.audio.ctx && g.audio.buses && g.audio.buses.master && g.audio.buses.music && g.audio.buses.sfx && g.audio.buses.amb);
+    g.audio.setVolumes({ master: 0.4, music: 0.25, sfx: 0.33 });
+    const vols = g.audio.getVolumes();
+    const slider = document.getElementById('volMaster');
+    slider.value = '55';
+    slider.dispatchEvent(new Event('input', { bubbles: true }));
+    const afterSlide = g.audio.getVolumes().master;
+    return {
+      started, blockedDuring, canDuring, progress, afterMag, afterRes,
+      blockedFull, blockedEmptyRes, emptyFire,
+      shellStart, shellDur, moreShell, shellMag, shellRes,
+      buses, vols, afterSlide,
+      hint: !!document.getElementById('reloadHint'),
+      bar: !!document.getElementById('reloadBar')
+    };
+  });
+  ok(audio.started, 'R/startReload begins when mag not full');
+  ok(audio.blockedDuring !== 'shot' && audio.canDuring === false, 'cannot fire mid-reload');
+  ok(audio.progress > 0, 'reload progress visible ' + audio.progress);
+  ok(audio.afterMag === 12 && audio.afterRes === 11, 'reload fills mag from reserve ' + audio.afterMag + '/' + audio.afterRes);
+  ok(audio.blockedFull === false, 'reload blocked when mag full');
+  ok(audio.blockedEmptyRes === false, 'reload blocked when reserve empty');
+  ok(audio.emptyFire === 'empty', 'dry-fire/empty when no reserve');
+  ok(audio.shellStart && audio.shellDur < 0.5, 'shotgun shell duration ' + audio.shellDur);
+  ok(audio.moreShell && audio.shellMag === 3 && audio.shellRes === 3, 'shotgun inserts one shell: ' + audio.shellMag + '/' + audio.shellRes);
+  ok(audio.buses, 'audio context and buses created');
+  ok(Math.abs(audio.vols.master - 0.4) < 0.01 && Math.abs(audio.vols.sfx - 0.33) < 0.01, 'setVolumes works');
+  ok(Math.abs(audio.afterSlide - 0.55) < 0.01, 'volume slider updates master ' + audio.afterSlide);
+  ok(audio.hint && audio.bar, 'reload HUD elements present');
+  await page.close();
+}
+
 await browser.close();
 if (fails.length) {
   console.error('Smoke failed:', fails);
